@@ -1,0 +1,128 @@
+use crate::trace::{TRACE_WIDTH, self};
+use rvsim::elf::Elf32;
+use rvsim::*;
+use winter_rand_utils::rand_vector;
+use winter_utils::Randomizable;
+use rand::Rng;
+use winterfell::{math::StarkField, TraceTable};
+
+pub mod memory;
+
+pub struct Tracer<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> {
+    interp: Interp<'s, 'm, 'c, M, C>,
+}
+
+impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
+    pub fn new(interp: Interp<'s, 'm, 'c, M, C>) -> Self {
+        Self { interp }
+    }
+
+    #[allow(clippy::needless_range_loop)]
+    pub fn current_trace<E>(&mut self) -> [E; TRACE_WIDTH]
+    where
+        E: From<u32> + Copy + core::fmt::Debug,
+    {
+        let mut trace = [0.into(); TRACE_WIDTH];
+        for i in 0..32 {
+            trace[i] = self.interp.state.x[i].into();
+        }
+        trace[32] = self.interp.state.pc.into();
+        let mut pc = 0u32;
+        self.interp
+            .mem
+            .access(self.interp.state.pc, MemoryAccess::Load(&mut pc));
+        for i in 0..32 {
+            trace[33 + i] = ((pc >> (31 - i)) & 1).into();
+        }
+        let clock = self.interp.clock.read_cycle() as u32;
+        trace[trace::BODY] = 1.into();
+        trace[126] = clock.into();
+        
+        trace
+    }
+
+    pub fn run<E>(&mut self) -> Vec<Vec<E>>
+    where
+        E: From<u32> + Copy + core::fmt::Debug,
+    {
+        let mut trace = vec![Vec::new(); TRACE_WIDTH];
+        let current_trace = self.current_trace();
+        for i in 0..TRACE_WIDTH {
+            trace[i].push(current_trace[i]);
+        }
+        loop {
+            match self.interp.step() {
+                Ok(op) if !matches!(op, Op::Jalr {..}) => {
+                    log::trace!("executed {:?}", op);
+                    let current_trace = self.current_trace();
+                    for i in 0..TRACE_WIDTH {
+                        trace[i].push(current_trace[i]);
+                    }
+                }
+                _ => { 
+                    break;
+                }
+                    ,
+                Err(e) => {
+                    log::error!("execution halted due to: {:?}", e);
+                    break;
+                }
+            }
+        }
+        trace
+    }
+
+    /// Builds an execution trace for computing a Fibonacci sequence of the specified length such
+    /// that each row advances the sequence by 2 terms.
+    pub fn build_trace<E: StarkField>(mut self) -> TraceTable<E> {
+        let mut trace = self.run::<E>();
+        let trace_len = trace[0].len();
+        log::debug!("program completed in {} cycles", trace_len);
+        let next_power_of_two = trace_len.next_power_of_two();
+        let pad_len = next_power_of_two - trace_len;
+        log::debug!("padding trace to {} cycles", next_power_of_two);
+        // TODO: proper padding
+        for (i, column) in trace.iter_mut().enumerate() {
+            if i == trace::BODY {
+                continue;
+            }
+            let mut bytes = vec![0u32; pad_len];
+            rand::thread_rng().fill(&mut bytes[..]);
+            column.extend(bytes.iter().map(|&b| E::from(b)));
+        }
+        *trace[trace::BODY].last_mut().unwrap() = E::ZERO;
+        trace[trace::BODY].extend(vec![E::ZERO; pad_len]);
+
+        TraceTable::init(trace)
+    }
+}
+
+pub fn load_elf_to_memory(elf: &Elf32, memory: &mut memory::SimpleMemory) {
+    if elf.ident.data != elf::ELF_IDENT_DATA_2LSB
+        || elf.ident.abi != elf::ELF_IDENT_ABI_SYSV
+        || elf.header.typ != elf::ELF_TYPE_EXECUTABLE
+        || elf.header.machine != elf::ELF_MACHINE_RISCV
+    {
+        panic!("unsupported executable format");
+    }
+
+    for (i, ph) in elf.ph.iter().enumerate() {
+        let addr = ph.vaddr;
+        if ph.typ == rvsim::elf::ELF_PROGRAM_TYPE_LOADABLE {
+            memory.load_slice(addr, elf.p[i]);
+        }
+    }
+}
+
+pub fn sim<E: StarkField>(elf: Elf32) -> TraceTable<E> {
+    let mut memory = memory::SimpleMemory::new();
+    let mut clock = SimpleClock::new();
+    load_elf_to_memory(&elf, &mut memory);
+
+    // Create the virtual CPU state, setting the PC to the start of our program.
+    let mut state = rvsim::CpuState::new(elf.header.entry);
+
+    let interp = Interp::new(&mut state, &mut memory, &mut clock);
+    let tracer = Tracer::new(interp);
+    tracer.build_trace()
+}
