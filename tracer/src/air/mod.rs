@@ -13,7 +13,7 @@ pub struct RiscvAir {
     context: AirContext<BaseElement>,
 }
 
-use crate::trace::TRACE_WIDTH;
+use trace_defs::TRACE_WIDTH;
 
 impl Air for RiscvAir {
     type BaseField = BaseElement;
@@ -46,10 +46,8 @@ impl Air for RiscvAir {
         result: &mut [E],
     ) {
         let mut index = 0;
-        let current = frame.current();
-        let next = frame.next();
-        index += ops::addi::evaluate_transitions(frame, periodic_values, &mut result[index..]);
-        ops::auipc::evaluate_transitions(frame, periodic_values, &mut result[index..]);
+        index += ops::lui::evaluate_transitions(frame, periodic_values, &mut result[index..]);
+        // ops::auipc::evaluate_transitions(frame, periodic_values, &mut result[index..]);
     }
 
     fn get_assertions(&self) -> Vec<Assertion<Self::BaseField>> {

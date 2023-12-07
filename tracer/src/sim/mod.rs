@@ -1,9 +1,9 @@
-use crate::trace::{TRACE_WIDTH, self};
+use rand::Rng;
 use rvsim::elf::Elf32;
 use rvsim::*;
+use trace_defs::{self as trace, TRACE_WIDTH};
 use winter_rand_utils::rand_vector;
 use winter_utils::Randomizable;
-use rand::Rng;
 use winterfell::{math::StarkField, TraceTable};
 
 pub mod memory;
@@ -37,7 +37,7 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
         let clock = self.interp.clock.read_cycle() as u32;
         trace[trace::BODY] = 1.into();
         trace[126] = clock.into();
-        
+
         trace
     }
 
@@ -52,17 +52,16 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
         }
         loop {
             match self.interp.step() {
-                Ok(op) if !matches!(op, Op::Jalr {..}) => {
+                Ok(op) if !matches!(op, Op::Jalr { .. }) => {
                     log::trace!("executed {:?}", op);
                     let current_trace = self.current_trace();
                     for i in 0..TRACE_WIDTH {
                         trace[i].push(current_trace[i]);
                     }
                 }
-                _ => { 
+                _ => {
                     break;
                 }
-                    ,
                 Err(e) => {
                     log::error!("execution halted due to: {:?}", e);
                     break;

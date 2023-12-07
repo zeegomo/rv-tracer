@@ -274,6 +274,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f7144d30dcf0fafbce74250a3963025d8d52177934239851c917d29f1df280c2"
 
 [[package]]
+name = "constraint-macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.39",
+ "trace-defs",
+ "winterfell",
+]
+
+[[package]]
 name = "cpufeatures"
 version = "0.2.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -609,6 +620,7 @@ dependencies = [
  "ark-ff",
  "ark-poly",
  "clap",
+ "constraint-macros",
  "elf",
  "env_logger",
  "log",
@@ -616,6 +628,7 @@ dependencies = [
  "rand",
  "rvsim",
  "seq-macro",
+ "trace-defs",
  "winter-rand-utils",
  "winter-utils 0.7.2",
  "winterfell",
@@ -689,6 +702,10 @@ checksum = "ff1bc3d3f05aff0403e8ac0d92ced918ec05b666a43f83297ccef5bea8a3d449"
 dependencies = [
  "winapi-util",
 ]
+
+[[package]]
+name = "trace-defs"
+version = "0.1.0"
 
 [[package]]
 name = "typenum"
