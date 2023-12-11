@@ -23,7 +23,7 @@ impl Air for RiscvAir {
     // --------------------------------------------------------------------------------------------
     fn new(trace_info: TraceInfo, _pub_inputs: (), options: ProofOptions) -> Self {
         let mut degrees = Vec::new();
-        degrees.push(TransitionConstraintDegree::new(2));
+        degrees.extend(ops::lui::constraint_degrees());
         // degrees.extend(ops::auipc::constraint_degrees());
         assert_eq!(TRACE_WIDTH, trace_info.width());
         // We also need to specify the exact number of assertions we will place against the

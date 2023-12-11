@@ -3,7 +3,6 @@ pub mod sim;
 // pub mod prove;
 // pub mod rs;
 pub mod prover;
-pub mod trace;
 use rvsim::elf::Elf32;
 use std::time::Instant;
 
@@ -50,11 +49,7 @@ pub fn verify<H: ElementHasher<BaseField = BaseElement>>(
     let acceptable_options =
         winterfell::AcceptableOptions::OptionSet(vec![proof.options().clone()]);
 
-    winterfell::verify::<air::RiscvAir, H, DefaultRandomCoin<H>>(
-        proof,
-        (),
-        &acceptable_options,
-    )?;
+    winterfell::verify::<air::RiscvAir, H, DefaultRandomCoin<H>>(proof, (), &acceptable_options)?;
     log::debug!("Verified proof in {} ms", now.elapsed().as_millis());
     Ok(())
 }
