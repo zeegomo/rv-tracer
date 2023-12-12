@@ -5,23 +5,34 @@ pub mod sim;
 pub mod prover;
 use rvsim::elf::Elf32;
 use std::time::Instant;
+use winterfell::ProverError;
 
 use winterfell::{
     crypto::{DefaultRandomCoin, ElementHasher},
-    math::fields::f128::BaseElement,
-    ProofOptions, Prover, StarkProof, Trace, VerifierError,
+    math::{fields::f128::BaseElement, StarkField},
+    ProofOptions, Prover, StarkProof, Trace, TraceTable, VerifierError,
 };
 
 pub fn prove<H: ElementHasher<BaseField = BaseElement>>(
+    trace: TraceTable<BaseElement>,
+    options: ProofOptions,
+) -> Result<StarkProof, ProverError> {
+    // generate the proof
+    let prover = prover::RiscvProver::<H>::new(options);
+    let now = Instant::now();
+    let proof = prover.prove(trace)?;
+    log::debug!("Generated proof in {} ms", now.elapsed().as_millis());
+    Ok(proof)
+}
+
+pub fn prove_from_elf<H: ElementHasher<BaseField = BaseElement>>(
     elf: Elf32,
     options: ProofOptions,
-) -> StarkProof {
+) -> Result<StarkProof, ProverError> {
     log::debug!(
         "Generating proof for riscv program\n\
         ---------------------"
     );
-
-    let prover = prover::RiscvProver::<H>::new(options);
     // generate execution trace
     let now = Instant::now();
     let trace = sim::sim(elf);
@@ -35,11 +46,7 @@ pub fn prove<H: ElementHasher<BaseField = BaseElement>>(
         now.elapsed().as_millis()
     );
 
-    // generate the proof
-    let now = Instant::now();
-    let proof = prover.prove(trace).unwrap();
-    log::debug!("Generated proof in {} ms", now.elapsed().as_millis());
-    proof
+    prove::<H>(trace, options)
 }
 
 pub fn verify<H: ElementHasher<BaseField = BaseElement>>(

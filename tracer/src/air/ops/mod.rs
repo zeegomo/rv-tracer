@@ -1,4 +1,4 @@
-use constraint_macros::{air, bitwise_air};
+use constraint_macros::air;
 
 air! {
     name = lui,
@@ -48,39 +48,37 @@ air!(
         (E::ONE - rd) * h1 + uimm - rs1 => 2
 );
 
-bitwise_air!(
+air!(
     name = xori,
     opcode = "0010011",
     funct3 = "100",
     parse = rs1 / rd,
-    constraints = rd - (rs1 + simm - E::from(2u32) * rs1 * simm) => 2
+    constraints = bitwise rd - (rs1 + simm - E::from(2u32) * rs1 * simm) => 2
 );
 
-bitwise_air!(
+air!(
     name = ori,
     opcode = "0010011",
     funct3 = "110",
     parse = rs1 / rd,
-    constraints = rd - (rs1 + simm - rs1 * simm) => 2
+    constraints = bitwise rd - (rs1 + simm - rs1 * simm) => 2
 );
 
-bitwise_air!(
+air!(
     name = andi,
     opcode = "0010011",
     funct3 = "111",
     parse = rs1 / rd,
-    constraints = rd - (rs1 * simm) => 2
+    constraints = bitwise rd - (rs1 * simm) => 2
 );
 
-// // TODO Fix
-// bitwise_air!(
+// TODO Fix
+// air!(
 //     name = slli,
 //     opcode = "0010011",
 //     funct3 = "001",
 //     parse = rs1 / rd / shamt,
-//     constraints =
-//         rd[..32 - shamt] - rs1[shamt..] => 1,
-//         rd[32 - shamt..] => 1
+//     constraints = shift rs1 -> rd,
 
 // );
 

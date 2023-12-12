@@ -1,0 +1,9 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 5aec695f14ec94b88249d70a114c09189d3c39122535b75ee7d0be0afa57b991 # shrinks to state = CpuState { regs: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, lui = Lui { rd: 0, imm: 0 }
+cc 2ed770a77e02edd554f927b2368152e5366b88f48b1ea5b7b48b464ebb028b64 # shrinks to state = CpuState { regs: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, lui = Lui { rd: 0, imm: 1 }
+cc b9ec539f79bdd2e60029f4e8e19f8737c38855da09aabf400e8f0c2828796df0 # shrinks to state = CpuState { regs: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, lui = Lui { rd: 1, imm: 1 }

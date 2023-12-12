@@ -13,13 +13,14 @@ pub const OPCODE_END: usize = RD_END + 5;
 pub const FUNCT3_END: usize = IMM_END + 17;
 pub const SHAMT_END: usize = INS_END + 7;
 // 65-96: rs1
-pub const RS1_START: usize = 65;
+pub const RS1_BITS_END: usize = 65;
 // 97-128: rs2
-pub const RS2_START: usize = 97;
+pub const RS2_BITS_END: usize = 97;
 // 129-160: rd
-pub const RD_START: usize = 129;
+pub const RD_BITS_END: usize = 129;
 // are we executing riscv code or is this padding?
 pub const BODY: usize = 247;
+pub const CYCLE: usize = 246;
 // helper registers
 pub const H_0: usize = 248;
 pub const H_1: usize = 249;

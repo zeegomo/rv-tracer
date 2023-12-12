@@ -19,3 +19,14 @@ winter-utils = { path = "../../winterfell/utils/core" }
 rand = "0.8.5"
 trace-defs = { path = "../trace-defs" }
 constraint-macros = { path = "../constraint-macros" }
+
+[dev-dependencies]
+proptest = "1.0.0"
+proptest-derive = "0.4"
+
+# faster tests
+[profile.test.package.proptest]
+opt-level = 3
+# faster tests
+[profile.test.package.rand_chacha]
+opt-level = 3

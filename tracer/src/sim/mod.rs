@@ -8,6 +8,9 @@ use winterfell::{math::StarkField, TraceTable};
 
 pub mod memory;
 
+// for some reason the trace length must be at least 8
+const MIN_LEN: usize = 8;
+
 pub struct Tracer<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> {
     interp: Interp<'s, 'm, 'c, M, C>,
 }
@@ -26,17 +29,17 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
         for i in 0..32 {
             trace[i] = self.interp.state.x[i].into();
         }
-        trace[32] = self.interp.state.pc.into();
+        trace[trace::PC] = self.interp.state.pc.into();
         let mut pc = 0u32;
         self.interp
             .mem
             .access(self.interp.state.pc, MemoryAccess::Load(&mut pc));
         for i in 0..32 {
-            trace[33 + i] = ((pc >> (31 - i)) & 1).into();
+            trace[trace::INS_END + i] = ((pc >> (31 - i)) & 1).into();
         }
         let clock = self.interp.clock.read_cycle() as u32;
         trace[trace::BODY] = 1.into();
-        trace[126] = clock.into();
+        trace[trace::CYCLE] = clock.into();
 
         trace
     }
@@ -77,7 +80,7 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
         let mut trace = self.run::<E>();
         let trace_len = trace[0].len();
         log::debug!("program completed in {} cycles", trace_len);
-        let next_power_of_two = trace_len.next_power_of_two();
+        let next_power_of_two = core::cmp::max(trace_len.next_power_of_two(), MIN_LEN);
         let pad_len = next_power_of_two - trace_len;
         log::debug!("padding trace to {} cycles", next_power_of_two);
         // TODO: proper padding

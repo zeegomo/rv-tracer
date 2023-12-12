@@ -30,7 +30,7 @@ fn main() {
     File::open(path).unwrap().read_to_end(&mut elf).unwrap();
     let elf = Elf32::parse(&elf).unwrap();
 
-    let proof = prove::<Blake3_192>(
+    let proof = prove_from_elf::<Blake3_192>(
         elf,
         ProofOptions::new(
             NUM_QUERIES,
@@ -40,6 +40,7 @@ fn main() {
             FRI_FOLDING_FACTOR,
             FRI_REMAINDER_MAX_DEGREE,
         ),
-    );
+    )
+    .unwrap();
     verify::<Blake3_192>(proof).unwrap();
 }
