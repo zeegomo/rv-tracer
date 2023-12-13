@@ -45,17 +45,6 @@ impl Parse for Field {
 }
 
 impl Field {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Field::Imm => "imm",
-            Field::Uimm => "uimm",
-            Field::Rd => "rd",
-            Field::Rs1 => "rs1",
-            Field::Rs2 => "rs2",
-            Field::Shamt => "shamt",
-        }
-    }
-
     pub fn to_trace_bit(&self, bit: usize) -> Expr {
         assert!(bit < REG_BITS, "bit index out of bounds");
         let bit = REG_BITS - bit - 1;

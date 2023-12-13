@@ -8,7 +8,6 @@ extern crate proc_macro;
 use proc_macro::TokenStream;
 
 use constraints::gen::generate as generate_constraints;
-use constraints::parse::{Air, Constraint, Field};
 use syn::parse_macro_input;
 
 #[proc_macro]

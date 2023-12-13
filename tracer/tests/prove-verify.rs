@@ -1,7 +1,6 @@
 mod common;
 
 use rv_tracer::{prove_from_elf, verify};
-use winterfell::math::fields::f128::BaseElement;
 
 use common::{Blake3_192, PROOF_OPTIONS};
 

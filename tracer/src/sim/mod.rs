@@ -2,8 +2,6 @@ use rand::Rng;
 use rvsim::elf::Elf32;
 use rvsim::*;
 use trace_defs::{self as trace, TRACE_WIDTH};
-use winter_rand_utils::rand_vector;
-use winter_utils::Randomizable;
 use winterfell::{math::StarkField, TraceTable};
 
 pub mod memory;
@@ -62,7 +60,7 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
                         trace[i].push(current_trace[i]);
                     }
                 }
-                _ => {
+                Ok(_) => {
                     break;
                 }
                 Err(e) => {

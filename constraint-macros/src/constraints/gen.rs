@@ -83,7 +83,7 @@ pub fn generate(config: Air) -> TokenStream {
                     let next = frame.next();
                     let is_body = current[BODY];
                     let mut index = 0;
-                    assert_eq!(result.len(), constraint_degrees().len(), "result length does not match constraint degrees length");
+                    assert!(result.len() >= constraint_degrees().len(), "result array too small");
 
                     for rrd in 1..=RD_CNT {
                         for rs1 in 0..RS1_CNT {
@@ -118,17 +118,14 @@ pub fn generate(config: Air) -> TokenStream {
                                         result[index] = (#c_exprs) * cumulative_flag;
                                         index += 1;
                                     )*
-                                    if current[CYCLE] == E::ONE ||  current[CYCLE] == E::ZERO {
-                                        assert_eq!(result[0], E::ZERO, "constraint {:?} rd value: {rd} rd: {rrd} flag: {rd_flag} cycle: {} {:?}", &current[RD_END..RD_END + 5],current[CYCLE], &current[UIMM_END..UIMM_END + 20]);
-                                    }
-                                    
                                 }
                             }
                         }
                     }
 
                     // return the number of use constraint columns
-                    #n_constraints
+                
+                    TOT_CNT * #n_constraints
                 }
 
                 pub fn constraint_degrees() -> Vec<TransitionConstraintDegree> {

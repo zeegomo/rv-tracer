@@ -5,8 +5,7 @@ use winterfell::{
     math::{fields::f128::BaseElement, FieldElement},
     matrix::ColMatrix,
     AuxTraceRandElements, ConstraintCompositionCoefficients, DefaultConstraintEvaluator,
-    DefaultTraceLde, ProofOptions, Prover, StarkDomain, Trace, TraceInfo, TracePolyTable,
-    TraceTable,
+    DefaultTraceLde, ProofOptions, Prover, StarkDomain, TraceInfo, TracePolyTable, TraceTable,
 };
 
 pub struct RiscvProver<H: ElementHasher> {
@@ -36,8 +35,7 @@ where
     type ConstraintEvaluator<'a, E: FieldElement<BaseField = Self::BaseField>> =
         DefaultConstraintEvaluator<'a, Self::Air, E>;
 
-    fn get_pub_inputs(&self, trace: &Self::Trace) -> () {
-        ()
+    fn get_pub_inputs(&self, _trace: &Self::Trace) -> <Self::Air as winterfell::Air>::PublicInputs {
     }
 
     fn options(&self) -> &ProofOptions {
