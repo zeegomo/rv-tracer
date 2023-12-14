@@ -23,6 +23,7 @@ constraint-macros = { path = "../constraint-macros" }
 [dev-dependencies]
 proptest = "1.0.0"
 proptest-derive = "0.4"
+paste = "1"
 
 # faster tests
 [profile.test.package.proptest]

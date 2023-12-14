@@ -46,7 +46,7 @@ impl Air for RiscvAir {
     ) {
         let mut index = 0;
         index += ops::lui::evaluate_transitions(frame, periodic_values, &mut result[index..]);
-        index += ops::auipc::evaluate_transitions(frame, periodic_values, &mut result[index..]);
+        ops::auipc::evaluate_transitions(frame, periodic_values, &mut result[index..]);
     }
 
     fn get_assertions(&self) -> Vec<Assertion<Self::BaseField>> {

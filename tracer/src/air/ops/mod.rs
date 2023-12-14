@@ -7,11 +7,12 @@ air! {
     constraints = rd - upper_imm => 1
 }
 
+// h0 is the overflow bit
 air! {
     name = auipc,
     opcode = "0010111",
     parse = rd,
-    constraints = next[PC] - (current[PC] + upper_imm) => 1
+    constraints = (rd + h0 * E::from(1u64 << 32)) - (current[PC] + upper_imm) => 1
 }
 
 air! {

@@ -59,14 +59,14 @@ pub fn generate(config: Air) -> TokenStream {
             pub mod #name {
                 use trace_defs::*;
                 use core::ops::*;
-                use winterfell::{EvaluationFrame, TransitionConstraintDegree, math::FieldElement};
+                use winterfell::{EvaluationFrame, TransitionConstraintDegree, math::{FieldElement, StarkField}};
 
                 const OPCODE_FLAG_DEG: usize = 7;
                 const FUNCT3_FLAG_DEG: usize = #funct3_deg as usize;
                 const RS1_FLAG_DEG: usize = #rs1_deg as usize;
                 const RS2_FLAG_DEG: usize = #rs2_deg as usize;
                 const RD_FLAG_DEG: usize = #rd_deg as usize;
-                const RD_CNT: usize = 1 << #rd_deg as usize - 1;
+                const RD_CNT: usize = (1 << #rd_deg as usize) - 1;
                 const RS1_CNT: usize = 1 << #rs1_deg as usize;
                 const RS2_CNT: usize = 1 << #rs2_deg as usize;
                 const SHAMT_CNT: usize = 1 << #shamt_deg as usize;
@@ -104,7 +104,7 @@ pub fn generate(config: Air) -> TokenStream {
                                     let uimm = get_immediate(&current[UIMM_END..UIMM_END + 12]);
                                     let upper_imm = get_upper_immediate(&current[UIMM_END..UIMM_END + 20]);
                                     let pc = current[PC];
-                                    let h0 = current[H_0];
+                                    let h0 = next[H_0];
                                     let h1 = current[H_1];
                                     let h2 = current[H_2];
                                     let h3 = current[H_3];
@@ -116,6 +116,9 @@ pub fn generate(config: Air) -> TokenStream {
 
                                     #(
                                         result[index] = (#c_exprs) * cumulative_flag;
+                                        // if body_flag == E::ONE {
+                                        //     assert_eq!(result[index], E::ZERO, "{rrd}: {rd} + {h0} =  {pc} + {upper_imm}" );
+                                        // }
                                         index += 1;
                                     )*
                                 }
@@ -212,9 +215,11 @@ pub fn generate(config: Air) -> TokenStream {
                 fn get_upper_immediate<E: FieldElement>(op: &[E]) -> E {
                     let mut result = E::ZERO;
                     assert_eq!(op.len(), 20, "requested upper immediate with invalid length {}", op.len());
-                    for (i, bit) in op.iter().rev().enumerate() {
-                        result += *bit * E::from(1u32 << (i + 12));
+                    result -= op[0] * E::from(1u32 << 12 + 19);
+                    for i in 1..20 {
+                        result += op[i] * E::from(1u32 << (32 - i - 1));
                     }
+                   
                     result
                 }
         }

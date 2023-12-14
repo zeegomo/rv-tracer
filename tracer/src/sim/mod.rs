@@ -2,7 +2,10 @@ use rand::Rng;
 use rvsim::elf::Elf32;
 use rvsim::*;
 use trace_defs::{self as trace, TRACE_WIDTH};
-use winterfell::{math::StarkField, TraceTable};
+use winterfell::{
+    math::{FieldElement, StarkField},
+    TraceTable,
+};
 
 pub mod memory;
 
@@ -21,11 +24,11 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
     #[allow(clippy::needless_range_loop)]
     pub fn current_trace<E>(&mut self) -> [E; TRACE_WIDTH]
     where
-        E: From<u32> + Copy + core::fmt::Debug,
+        E: FieldElement,
     {
-        let mut trace = [0.into(); TRACE_WIDTH];
+        let mut trace = [0u32.into(); TRACE_WIDTH];
         for i in 0..32 {
-            trace[i] = self.interp.state.x[i].into();
+            trace[i] = signed(self.interp.state.x[i]);
         }
         trace[trace::PC] = self.interp.state.pc.into();
         let mut pc = 0u32;
@@ -36,7 +39,7 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
             trace[trace::INS_END + i] = ((pc >> (31 - i)) & 1).into();
         }
         let clock = self.interp.clock.read_cycle() as u32;
-        trace[trace::BODY] = 1.into();
+        trace[trace::BODY] = 1u32.into();
         trace[trace::CYCLE] = clock.into();
 
         trace
@@ -44,7 +47,7 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
 
     pub fn run<E>(&mut self) -> Vec<Vec<E>>
     where
-        E: From<u32> + Copy + core::fmt::Debug,
+        E: FieldElement,
     {
         let mut trace = vec![Vec::new(); TRACE_WIDTH];
         let current_trace = self.current_trace();
@@ -55,7 +58,20 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
             match self.interp.step() {
                 Ok(op) if !matches!(op, Op::Jalr { .. }) => {
                     log::trace!("executed {:?}", op);
-                    let current_trace = self.current_trace();
+                    let mut current_trace = self.current_trace();
+
+                    match op {
+                        Op::Auipc { u_imm, .. } => {
+                            // is pc signed?
+                            let pc = self.interp.state.pc as i32;
+                            let uimm = i32::from(u_imm);
+                            // TODO: this is essentially re-doing an addition
+                            if pc.overflowing_add(uimm).1 {
+                                current_trace[trace::H_0] = E::from(1u32);
+                            }
+                        }
+                        _ => {}
+                    }
                     for i in 0..TRACE_WIDTH {
                         trace[i].push(current_trace[i]);
                     }
@@ -125,4 +141,12 @@ pub fn sim<E: StarkField>(elf: Elf32) -> TraceTable<E> {
     let interp = Interp::new(&mut state, &mut memory, &mut clock);
     let tracer = Tracer::new(interp);
     tracer.build_trace()
+}
+
+fn signed<E: FieldElement>(val: u32) -> E {
+    if val & (1u32 << 31) == 0 {
+        E::from(val)
+    } else {
+        E::from(val) - E::from(2u32) * E::from(1u32 << 31)
+    }
 }
