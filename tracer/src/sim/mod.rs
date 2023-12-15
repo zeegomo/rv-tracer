@@ -14,11 +14,15 @@ const MIN_LEN: usize = 8;
 
 pub struct Tracer<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> {
     interp: Interp<'s, 'm, 'c, M, C>,
+    executed: Vec<Op>,
 }
 
 impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
     pub fn new(interp: Interp<'s, 'm, 'c, M, C>) -> Self {
-        Self { interp }
+        Self {
+            interp,
+            executed: Vec::new(),
+        }
     }
 
     #[allow(clippy::needless_range_loop)]
@@ -39,9 +43,8 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
             trace[trace::INS_END + i] = ((pc >> (31 - i)) & 1).into();
         }
         let clock = self.interp.clock.read_cycle() as u32;
-        trace[trace::BODY] = 1u32.into();
+        trace[trace::BODY] = E::ONE;
         trace[trace::CYCLE] = clock.into();
-
         trace
     }
 
@@ -56,7 +59,8 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
         }
         loop {
             match self.interp.step() {
-                Ok(op) if !matches!(op, Op::Jalr { .. }) => {
+                Ok(op) => {
+                    self.executed.push(op.clone());
                     log::trace!("executed {:?}", op);
                     let mut current_trace = self.current_trace();
 
@@ -74,6 +78,16 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
                             // TODO: this is essentially re-doing an addition
                             if rs1.overflowing_add(i_imm).1 {
                                 current_trace[trace::H_0] = E::from(1u32);
+                            }
+                        }
+                        Op::Jal { j_imm, .. } => {
+                            let pc = self.interp.state.pc as i32;
+                            if pc.overflowing_add(4).1 {
+                                current_trace[trace::H_0] = E::from(1u32);
+                            }
+
+                            if pc.overflowing_add(j_imm).1 {
+                                current_trace[trace::H_1] = E::from(1u32);
                             }
                         }
                         _ => {}
@@ -114,7 +128,6 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
         }
         *trace[trace::BODY].last_mut().unwrap() = E::ZERO;
         trace[trace::BODY].extend(vec![E::ZERO; pad_len]);
-
         TraceTable::init(trace)
     }
 }

@@ -24,6 +24,32 @@ air! {
     constraints =  (rd + h0 * E::from(1u64 << 32)) - (rs1 + simm) => 1
 }
 
+// FIX: we ignore constraints for rd = 0 but we should not do that
+air! {
+    name = jal,
+    opcode = "1101111",
+    parse = rd,
+    constraints =
+        rd + h0 * E::from(1u64 << 32) - (current[PC] + E::from(4u32)) => 1,
+        (next[PC] + h1 * E::from(1u64 << 32)) - (current[PC] + jal_offset) => 1
+}
+
+// FIX: we ignore constraints for rd = 0 but we should not do that
+// h0, h1 overflow bits
+// TODO: h2 = xor rs1[0], simm[0]
+air! {
+    name = jalr,
+    opcode = "1100111",
+    funct3 = "000",
+    parse = rs1 / rd,
+    constraints =
+        rd - (current[PC] + E::from(4u32)) => 1,
+        (next[PC] + h1 * E::from(1u64 << 32)) - (rs1 + simm - h2) => 1
+        h2 -
+}
+
+// (next[PC] + h1 * E::from(1u64 << 32)) - (current[PC] + jal_offset) => 1
+
 // // TODO: signed version
 // air!(
 //     name = slti,

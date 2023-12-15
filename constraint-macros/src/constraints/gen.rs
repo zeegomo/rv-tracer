@@ -98,9 +98,7 @@ pub fn generate(config: Air) -> TokenStream {
                                     let body_flag = current[BODY];
 
                                     let cumulative_flag = op_flag * rd_flag * rs1_flag * rs2_flag * body_flag * funct3_flag * shamt_flag;
-                                    // TODO: fix sign
                                     let simm = get_signed::<12, 12, _>(&current[IMM_END..IMM_END + 12]);
-                                    let uimm = get_immediate(&current[UIMM_END..UIMM_END + 12]);
                                     let upper_imm = get_signed::<32, 20, _>(&current[UIMM_END..UIMM_END + 20]);
                                     let pc = current[PC];
                                     let h0 = next[H_0];
@@ -109,15 +107,14 @@ pub fn generate(config: Air) -> TokenStream {
                                     let h3 = current[H_3];
                                     let h4 = current[H_4];
                                     let h5 = current[H_5];
+                                    let jal_offset = jal_offset(&current[JAL_OFFSET_END..JAL_OFFSET_END + 20]);
                                     let rd = next[REGISTER_START + rrd];
                                     let rs1 = current[REGISTER_START + rrs1];
                                     let rs2 = current[REGISTER_START + rrs2];
+                                    
 
                                     #(
                                         result[index] = (#c_exprs) * cumulative_flag;
-                                        // if body_flag == E::ONE && rs1_flag == E::ONE {
-                                        //    panic!("{rrs1} {rs1} + {simm} = {:?} | {:?} {:?} {RS1_FLAG_DEG}", &current[RS1_END..RS1_END + 5], rs1_flag);
-                                        // }
                                         index += 1;
                                     )*
                                 }
@@ -200,28 +197,22 @@ pub fn generate(config: Air) -> TokenStream {
                     #shamt_flag_contents
                 }
 
-                // Degree: 1
-                // TODO: this is unsigned, but we need signed
-                fn get_immediate<E: FieldElement>(op: &[E]) -> E {
+              
+                fn jal_offset<E: FieldElement>(offset: &[E]) -> E {
+                    // format for jal offset is a bit wonky:
+                    // [20, 10-1, 11, 19-12]
+                    assert_eq!(offset.len(), 20, "requested jal offset with invalid length {}", offset.len());
                     let mut result = E::ZERO;
-                    assert_eq!(op.len(), 12, "requested upper immediate with invalid length {}", op.len());
-                    for (i, bit) in op.iter().enumerate() {
-                        result += *bit * E::from(1u32 << i);
+                    result -= offset[0] * E::from(1u32 << 20);
+                    for i in 1..=10 {
+                        result += offset[i] * E::from(1u32 << (11 - i));
+                    }
+                    result += offset[11] * E::from(1u32 << 11);
+                    for i in 12..20 {
+                        result += offset[i] * E::from(1u32 << (19 - i + 12));
                     }
                     result
                 }
-
-                // fn get_upper_immediate<E: FieldElement>(op: &[E]) -> E {
-                //     let mut result = E::ZERO;
-                //     assert_eq!(op.len(), 20, "requested upper immediate with invalid length {}", op.len());
-                //     result -= op[0] * E::from(1u32 << 12 + 19);
-                //     for i in 1..20 {
-                //         result += op[i] * E::from(1u32 << (32 - i - 1));
-                //     }
-                   
-                //     result
-                // }
-
 
                 fn get_signed<const N: usize, const LEN: usize, E: FieldElement>(op: &[E]) -> E {
                     let mut result = E::ZERO;

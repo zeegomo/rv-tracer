@@ -16,8 +16,8 @@ macro_rules! execute {
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Lui {
-    rd: usize,
-    uimm: i32,
+    pub rd: usize,
+    pub uimm: i32,
 }
 
 impl Arbitrary for Lui {
@@ -25,10 +25,10 @@ impl Arbitrary for Lui {
     type Strategy = BoxedStrategy<Self>;
 
     fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        (0..32usize, 0..(1u32 << 20))
+        (0..32usize, any::<Signed<20, 12>>())
             .prop_map(|(rd, uimm)| Lui {
                 rd,
-                uimm: (uimm << 12) as i32,
+                uimm: uimm.into(),
             })
             .boxed()
     }
@@ -69,11 +69,10 @@ impl Arbitrary for Auipc {
     type Strategy = BoxedStrategy<Self>;
 
     fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        (0..32usize, 0..(1u32 << 20))
+        (0..32usize, any::<Signed<20, 12>>())
             .prop_map(|(rd, uimm)| Auipc {
                 rd,
-                // TODO: if the cast here produces 2^19
-                uimm: (uimm << 12) as i32,
+                uimm: uimm.into(),
             })
             .boxed()
     }
@@ -115,8 +114,12 @@ impl Arbitrary for Addi {
     type Strategy = BoxedStrategy<Self>;
 
     fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        (0..32usize, 0..32usize, (1i32 << 10)..(1i32 << 11))
-            .prop_map(|(rd, rs1, imm)| Addi { rd, rs1, imm })
+        (0..32usize, 0..32usize, any::<Signed<12, 0>>())
+            .prop_map(|(rd, rs1, imm)| Addi {
+                rd,
+                rs1,
+                imm: imm.into(),
+            })
             .boxed()
     }
 }
@@ -147,5 +150,132 @@ impl From<rvsim::Op> for Addi {
             },
             _ => panic!("wrong op type"),
         }
+    }
+}
+
+// pub type Jal = Lui;
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct Jal {
+    pub rd: usize,
+    pub offset: i32,
+}
+
+impl Arbitrary for Jal {
+    type Parameters = ();
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+        (0..32usize, any::<Signed<19, 2>>())
+            .prop_map(|(rd, offset)| {
+                let mut offset = offset.into();
+                if offset == 0 {
+                    offset = 4;
+                }
+                Jal { rd, offset }
+            })
+            .boxed()
+    }
+}
+
+impl Op for Jal {
+    fn execute<E>(&self, state: CpuState) -> TraceTable<E>
+    where
+        E: StarkField,
+    {
+        execute!(self, state)
+    }
+
+    fn to_op(&self) -> u32 {
+        let b12_19 = (self.offset as u32) & 0xff000;
+        let b_10_1 = ((self.offset as u32) & 0x7fe) << 20;
+        let b_11 = (self.offset as u32 & (1 << 11)) << 9;
+        let b_20 = (self.offset as u32 & (1 << 20)) << 11;
+        let rd = (self.rd << 7) as u32;
+        0b1101111 | b12_19 | b_10_1 | b_11 | b_20 | rd
+    }
+}
+
+impl From<rvsim::Op> for Jal {
+    fn from(other: rvsim::Op) -> Self {
+        match other {
+            rvsim::Op::Jal { rd, j_imm } => Self { rd, offset: j_imm },
+            _ => panic!("wrong op type"),
+        }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct Jalr {
+    pub rd: usize,
+    pub rs1: usize,
+    pub imm: i32,
+}
+
+impl Arbitrary for Jalr {
+    type Parameters = ();
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+        (0..32usize, 0..32usize, any::<Signed<12, 0>>())
+            .prop_map(|(rd, rs1, offset)| Jalr {
+                rd,
+                rs1,
+                imm: offset.into(),
+            })
+            .boxed()
+    }
+}
+
+impl Op for Jalr {
+    fn execute<E>(&self, state: CpuState) -> TraceTable<E>
+    where
+        E: StarkField,
+    {
+        execute!(self, state)
+    }
+
+    fn to_op(&self) -> u32 {
+        let imm = (self.imm as u32) << 20;
+        let rs1 = (self.rs1 << 15) as u32;
+        let rd = (self.rd << 7) as u32;
+        0b1100111 | imm | rs1 | rd
+    }
+}
+
+impl From<rvsim::Op> for Jalr {
+    fn from(other: rvsim::Op) -> Self {
+        match other {
+            rvsim::Op::Jalr { rd, rs1, i_imm } => Self {
+                rd,
+                rs1,
+                imm: i_imm,
+            },
+            _ => panic!("wrong op type"),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct Signed<const N: usize, const OFFSET: usize> {
+    inner: i32,
+}
+
+impl<const N: usize, const OFFSET: usize> Arbitrary for Signed<N, OFFSET> {
+    type Parameters = ();
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+        (-1i32 << (N - 1)..(1i32 << (N - 1)))
+            .prop_map(|inner| Self {
+                inner: inner << OFFSET,
+            })
+            .boxed()
+    }
+}
+
+impl<const N: usize, const OFFSET: usize> From<Signed<N, OFFSET>> for i32 {
+    fn from(other: Signed<N, OFFSET>) -> Self {
+        other.inner as i32
     }
 }

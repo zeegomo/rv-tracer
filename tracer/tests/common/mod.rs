@@ -89,10 +89,19 @@ where
     }
 }
 
-impl<O: Op> Trace<O> {
+impl<O: Op + Send + 'static> Trace<O> {
     // this is not actually dead
     #[allow(dead_code)]
-    pub fn table<E: StarkField>(&self) -> TraceTable<E> {
+    pub fn table<E: StarkField + 'static>(&self) -> TraceTable<E> {
+        // let op = self.op.clone();
+        // let state = self.state.clone();
+        // let table = std::thread::spawn(move || op.execute(state));
+        // std::thread::sleep(std::time::Duration::from_secs(1));
+        // if !table.is_finished() {
+        //     panic!("{:?}", self);
+        // } else {
+        //     table.join().unwrap()
+        // }
         self.op.execute(self.state.clone())
     }
 }
