@@ -1,6 +1,7 @@
 pub mod ops;
-mod perturb;
+pub mod perturb;
 
+use perturb::Field;
 use proptest::prelude::*;
 use rv_tracer::sim::{memory::SimpleMemory, Tracer};
 use std::fmt::Debug;
@@ -32,11 +33,6 @@ const OP_ADDR: usize = SimpleMemory::DRAM_BASE as usize;
 pub trait Op: Arbitrary + Debug + From<rvsim::Op> + Eq + Clone {
     fn to_op(&self) -> u32;
     fn execute<E: StarkField>(&self, state: CpuState) -> TraceTable<E>;
-    fn perturb() -> Vec<perturb::Field>;
-}
-
-pub trait Perturbation {
-    fn perturb<E: StarkField>(trace: &mut TraceTable<E>);
 }
 
 #[derive(Debug, Clone)]
@@ -49,10 +45,11 @@ impl Arbitrary for CpuState {
     type Strategy = BoxedStrategy<Self>;
 
     fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        prop::collection::vec(0..u32::MAX, 31)
+        prop::collection::vec(i32::MIN..=i32::MAX, 31)
             .prop_map(|regs| CpuState {
                 regs: std::iter::once(0)
                     .chain(regs)
+                    .map(|x| x as u32)
                     .collect::<Vec<_>>()
                     .try_into()
                     .unwrap(),
@@ -93,19 +90,23 @@ where
 }
 
 impl<O: Op> Trace<O> {
+    // this is not actually dead
+    #[allow(dead_code)]
     pub fn table<E: StarkField>(&self) -> TraceTable<E> {
         self.op.execute(self.state.clone())
     }
 }
 
 #[derive(Debug)]
-pub struct PerturbedTrace<E: StarkField, O: Op> {
+#[allow(dead_code)]
+pub struct PerturbedTrace<E: StarkField, O: Op, P: Field> {
     pub trace_table: TraceTable<E>,
     op: O,
     state: CpuState,
+    _phantom: std::marker::PhantomData<P>,
 }
 
-impl<E: StarkField, O: Op> Arbitrary for PerturbedTrace<E, O>
+impl<E: StarkField, O: Op, P: Field> Arbitrary for PerturbedTrace<E, O, P>
 where
     <O as proptest::arbitrary::Arbitrary>::Strategy: 'static,
 {
@@ -119,13 +120,14 @@ where
                 op: op.clone(),
                 state: state.clone(),
                 trace_table: op.execute(state),
+                _phantom: std::marker::PhantomData,
             })
             .prop_perturb(|mut trace, mut rng| {
                 let mut row = [E::ZERO; TRACE_WIDTH];
                 trace.trace_table.read_row_into(0, &mut row);
-                for field in O::perturb() {
-                    field.perturb(&mut row, &mut rng);
-                }
+
+                P::perturb(&mut row, &mut rng);
+
                 trace.trace_table.update_row(0, &row);
                 trace
             })
@@ -133,10 +135,10 @@ where
     }
 }
 
-pub fn to_binary<const M: usize>(val: u32) -> [u32; M] {
+pub fn to_binary<const M: usize>(val: u64) -> [u8; M] {
     let mut result = [0; M];
     assert!(
-        (val as u64) < (1u64 << M),
+        val < (1u64 << M),
         "requested binary representation of value({val}) bigger than output array({M})"
     );
     for i in 0..M {

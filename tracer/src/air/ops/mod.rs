@@ -15,65 +15,66 @@ air! {
     constraints = (rd + h0 * E::from(1u64 << 32)) - (current[PC] + upper_imm) => 1
 }
 
+// h0 is the overflowing bit
 air! {
     name = addi,
     opcode = "0010011",
     funct3 = "000",
     parse = rs1 / rd,
-    constraints = rd - (rs1 + simm) => 1
+    constraints =  (rd + h0 * E::from(1u64 << 32)) - (rs1 + simm) => 1
 }
 
-// TODO: signed version
-air!(
-    name = slti,
-    opcode = "0010011",
-    funct3 = "010",
-    parse = rs1 / rd,
-    constraints =
-        rd * h0 + rs1 - simm => 2,
-        (E::ONE - rd) * h1 + rs1 - simm => 2
-);
+// // TODO: signed version
+// air!(
+//     name = slti,
+//     opcode = "0010011",
+//     funct3 = "010",
+//     parse = rs1 / rd,
+//     constraints =
+//         rd * h0 + rs1 - simm => 2,
+//         (E::ONE - rd) * h1 + rs1 - simm => 2
+// );
 
-// TODO: add range checks to H0 and H1
-// This check uses 2 additional helper registers to ensure the computation was
-// performed correctly.
-// If rs1 < immediate, then rd = 1. This means there is 0 < C < 2^32 s.t. rs1 + C = immediate. H0 is C.
-// If rs1 >= immediate, then rd = 0. This means there is 0 <= C' < 2^32 s.t. immediate + C = rs1. H1 is C'.
-air!(
-    name = sltui,
-    opcode = "0010011",
-    funct3 = "011",
-    parse = rs1 / rd,
-    constraints =
-        rd * h0 + rs1 - uimm => 2,
-        (E::ONE - rd) * h1 + uimm - rs1 => 2
-);
+// // TODO: add range checks to H0 and H1
+// // This check uses 2 additional helper registers to ensure the computation was
+// // performed correctly.
+// // If rs1 < immediate, then rd = 1. This means there is 0 < C < 2^32 s.t. rs1 + C = immediate. H0 is C.
+// // If rs1 >= immediate, then rd = 0. This means there is 0 <= C' < 2^32 s.t. immediate + C = rs1. H1 is C'.
+// air!(
+//     name = sltui,
+//     opcode = "0010011",
+//     funct3 = "011",
+//     parse = rs1 / rd,
+//     constraints =
+//         rd * h0 + rs1 - uimm => 2,
+//         (E::ONE - rd) * h1 + uimm - rs1 => 2
+// );
 
-air!(
-    name = xori,
-    opcode = "0010011",
-    funct3 = "100",
-    parse = rs1 / rd,
-    constraints = bitwise rd - (rs1 + simm - E::from(2u32) * rs1 * simm) => 2
-);
+// air!(
+//     name = xori,
+//     opcode = "0010011",
+//     funct3 = "100",
+//     parse = rs1 / rd,
+//     constraints = bitwise rd - (rs1 + simm - E::from(2u32) * rs1 * simm) => 2
+// );
 
-air!(
-    name = ori,
-    opcode = "0010011",
-    funct3 = "110",
-    parse = rs1 / rd,
-    constraints = bitwise rd - (rs1 + simm - rs1 * simm) => 2
-);
+// air!(
+//     name = ori,
+//     opcode = "0010011",
+//     funct3 = "110",
+//     parse = rs1 / rd,
+//     constraints = bitwise rd - (rs1 + simm - rs1 * simm) => 2
+// );
 
-air!(
-    name = andi,
-    opcode = "0010011",
-    funct3 = "111",
-    parse = rs1 / rd,
-    constraints = bitwise rd - (rs1 * simm) => 2
-);
+// air!(
+//     name = andi,
+//     opcode = "0010011",
+//     funct3 = "111",
+//     parse = rs1 / rd,
+//     constraints = bitwise rd - (rs1 * simm) => 2
+// );
 
-// TODO Fix
+// // TODO Fix
 // air!(
 //     name = slli,
 //     opcode = "0010011",
@@ -123,49 +124,49 @@ air!(
 //     constraints = rd - (rs1 - rs2) => 1
 // );
 
-air!(
-    name = sll,
-    opcode = "0110011",
-    funct3 = "001",
-    parse = rs1 / rs2 / rd,
-    constraints = rd - (rs1 * rs2) => 1
-);
+// air!(
+//     name = sll,
+//     opcode = "0110011",
+//     funct3 = "001",
+//     parse = rs1 / rs2 / rd,
+//     constraints = rd - (rs1 * rs2) => 1
+// );
 
-air!(
-    name = slt,
-    opcode = "0110011",
-    funct3 = "010",
-    parse = rs1 / rs2 / rd,
-    constraints =
-        rd * h0 + rs1 - rs2 => 2,
-        (E::ONE - rd) * h1 + rs1 - rs2 => 2
-);
+// air!(
+//     name = slt,
+//     opcode = "0110011",
+//     funct3 = "010",
+//     parse = rs1 / rs2 / rd,
+//     constraints =
+//         rd * h0 + rs1 - rs2 => 2,
+//         (E::ONE - rd) * h1 + rs1 - rs2 => 2
+// );
 
-air!(
-    name = sltu,
-    opcode = "0110011",
-    funct3 = "011",
-    parse = rs1 / rs2 / rd,
-    constraints =
-        rd * h0 + rs1 - rs2 => 2,
-        (E::ONE - rd) * h1 + rs1 - rs2 => 2
-);
+// air!(
+//     name = sltu,
+//     opcode = "0110011",
+//     funct3 = "011",
+//     parse = rs1 / rs2 / rd,
+//     constraints =
+//         rd * h0 + rs1 - rs2 => 2,
+//         (E::ONE - rd) * h1 + rs1 - rs2 => 2
+// );
 
-air!(
-    name = xor,
-    opcode = "0110011",
-    funct3 = "100",
-    parse = rs1 / rs2 / rd,
-    constraints = rd - (rs1 + rs2 - E::from(2u32) * rs1 * rs2) => 2
-);
+// air!(
+//     name = xor,
+//     opcode = "0110011",
+//     funct3 = "100",
+//     parse = rs1 / rs2 / rd,
+//     constraints = rd - (rs1 + rs2 - E::from(2u32) * rs1 * rs2) => 2
+// );
 
-air!(
-    name = srl,
-    opcode = "0110011",
-    funct3 = "101",
-    parse = rs1 / rs2 / rd,
-    constraints = rd - (rs1 * rs2) => 2
-);
+// air!(
+//     name = srl,
+//     opcode = "0110011",
+//     funct3 = "101",
+//     parse = rs1 / rs2 / rd,
+//     constraints = rd - (rs1 * rs2) => 2
+// );
 
 // air!(
 //     name = sra,

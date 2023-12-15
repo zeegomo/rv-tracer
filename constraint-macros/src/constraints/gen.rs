@@ -1,4 +1,4 @@
-extern crate proc_macro;
+// extern crate proc_macro;
 use crate::constraints::parse::{Air, Field};
 use proc_macro::TokenStream;
 use quote::quote;
@@ -11,12 +11,11 @@ fn make_flag<'a, const VAL_LOG2: usize>(
 ) -> (proc_macro2::TokenStream, usize) {
     if fields.into_iter().any(|f| *f == item) {
         (
-            quote! { binary_flag(&to_binary::<#VAL_LOG2, _>(val, E::ZERO, E::ONE), test, E::ONE) }
-                .into(),
+            quote! { binary_flag(&to_binary::<#VAL_LOG2, _>(val, E::ZERO, E::ONE), test, E::ONE) },
             VAL_LOG2,
         )
     } else {
-        (quote! { E::ONE }.into(), 0)
+        (quote! { E::ONE }, 0)
     }
 }
 
@@ -86,13 +85,13 @@ pub fn generate(config: Air) -> TokenStream {
                     assert!(result.len() >= constraint_degrees().len(), "result array too small");
 
                     for rrd in 1..=RD_CNT {
-                        for rs1 in 0..RS1_CNT {
-                            for rs2 in 0..RS2_CNT {
+                        for rrs1 in 0..RS1_CNT {
+                            for rrs2 in 0..RS2_CNT {
                                 for shamt in 0..SHAMT_CNT {
 
                                     let rd_flag = rd_flag(rrd as u8, &current[RD_END..RD_END + 5]);
-                                    let rs1_flag = rs1_flag(rs1 as u8, &current[RS1_END..RS1_END + 5]);
-                                    let rs2_flag = rs2_flag(rs2 as u8, &current[RS2_END..RS2_END + 5]);
+                                    let rs1_flag = rs1_flag(rrs1 as u8, &current[RS1_END..RS1_END + 5]);
+                                    let rs2_flag = rs2_flag(rrs2 as u8, &current[RS2_END..RS2_END + 5]);
                                     let funct3_flag = funct3_flag(&current[FUNCT3_END..FUNCT3_END + 3]);
                                     let shamt_flag = shamt_flag(shamt as u8, &current[SHAMT_END..SHAMT_END + 5]);
                                     let op_flag = op_flag(&current[OPCODE_END..OPCODE_END + 7]);
@@ -100,9 +99,9 @@ pub fn generate(config: Air) -> TokenStream {
 
                                     let cumulative_flag = op_flag * rd_flag * rs1_flag * rs2_flag * body_flag * funct3_flag * shamt_flag;
                                     // TODO: fix sign
-                                    let simm = get_immediate(&current[UIMM_END..UIMM_END + 12]);
+                                    let simm = get_signed::<12, 12, _>(&current[IMM_END..IMM_END + 12]);
                                     let uimm = get_immediate(&current[UIMM_END..UIMM_END + 12]);
-                                    let upper_imm = get_upper_immediate(&current[UIMM_END..UIMM_END + 20]);
+                                    let upper_imm = get_signed::<32, 20, _>(&current[UIMM_END..UIMM_END + 20]);
                                     let pc = current[PC];
                                     let h0 = next[H_0];
                                     let h1 = current[H_1];
@@ -111,13 +110,13 @@ pub fn generate(config: Air) -> TokenStream {
                                     let h4 = current[H_4];
                                     let h5 = current[H_5];
                                     let rd = next[REGISTER_START + rrd];
-                                    let rs1 = current[REGISTER_START + rs1];
-                                    let rs2 = current[REGISTER_START + rs2];
+                                    let rs1 = current[REGISTER_START + rrs1];
+                                    let rs2 = current[REGISTER_START + rrs2];
 
                                     #(
                                         result[index] = (#c_exprs) * cumulative_flag;
-                                        // if body_flag == E::ONE {
-                                        //     assert_eq!(result[index], E::ZERO, "{rrd}: {rd} + {h0} =  {pc} + {upper_imm}" );
+                                        // if body_flag == E::ONE && rs1_flag == E::ONE {
+                                        //    panic!("{rrs1} {rs1} + {simm} = {:?} | {:?} {:?} {RS1_FLAG_DEG}", &current[RS1_END..RS1_END + 5], rs1_flag);
                                         // }
                                         index += 1;
                                     )*
@@ -212,14 +211,25 @@ pub fn generate(config: Air) -> TokenStream {
                     result
                 }
 
-                fn get_upper_immediate<E: FieldElement>(op: &[E]) -> E {
-                    let mut result = E::ZERO;
-                    assert_eq!(op.len(), 20, "requested upper immediate with invalid length {}", op.len());
-                    result -= op[0] * E::from(1u32 << 12 + 19);
-                    for i in 1..20 {
-                        result += op[i] * E::from(1u32 << (32 - i - 1));
-                    }
+                // fn get_upper_immediate<E: FieldElement>(op: &[E]) -> E {
+                //     let mut result = E::ZERO;
+                //     assert_eq!(op.len(), 20, "requested upper immediate with invalid length {}", op.len());
+                //     result -= op[0] * E::from(1u32 << 12 + 19);
+                //     for i in 1..20 {
+                //         result += op[i] * E::from(1u32 << (32 - i - 1));
+                //     }
                    
+                //     result
+                // }
+
+
+                fn get_signed<const N: usize, const LEN: usize, E: FieldElement>(op: &[E]) -> E {
+                    let mut result = E::ZERO;
+                    assert_eq!(op.len(), LEN, "requested upper immediate with invalid length {}", op.len());
+                    result -= op[0] * E::from(1u32 << (N - 1));
+                    for i in 1..LEN {
+                        result += op[i] * E::from(1u32 << (N - i - 1));
+                    }
                     result
                 }
         }

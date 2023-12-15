@@ -9,49 +9,91 @@ const REG_BITS: usize = 32;
 // how many bits to identify a register
 const REG_NUM_BITS: usize = 5;
 
-pub enum Field {
-    Rd,
-    Rs1,
-    Rs2,
-    Imm,
-    Uimm,
-    RdBits,
-    Rs1Bits,
-    Rs2Bits,
-    Pc,
+#[derive(Debug, Clone)]
+pub struct Rd;
+#[derive(Debug, Clone)]
+pub struct Rs1;
+#[derive(Debug, Clone)]
+pub struct Rs2;
+#[derive(Debug, Clone)]
+pub struct Imm;
+#[derive(Debug, Clone)]
+pub struct Uimm;
+#[derive(Debug, Clone)]
+pub struct RdBits;
+#[derive(Debug, Clone)]
+pub struct Rs1Bits;
+#[derive(Debug, Clone)]
+pub struct Rs2Bits;
+#[derive(Debug, Clone)]
+pub struct Pc;
+
+pub trait Field: Debug {
+    fn perturb<E: StarkField>(trace: &mut [E; TRACE_WIDTH], rng: &mut TestRng);
 }
 
-impl Field {
-    pub fn perturb<E: StarkField>(&self, trace: &mut [E; TRACE_WIDTH], rng: &mut TestRng) {
-        match self {
-            Field::Rd => {
-                perturb_reg(trace, rng, RD_END);
-            }
-            Field::Rs1 => {
-                perturb_reg(trace, rng, RS1_END);
-            }
-            Field::Rs2 => {
-                perturb_reg(trace, rng, RS2_END);
-            }
-            Field::Uimm => {
-                let change = to_binary::<20>(rng.gen_range(1..(1u32 << 20)));
-                for i in 0..20 {
-                    if E::from(change[i]) == E::ONE {
-                        trace[UIMM_END + i] = E::ONE - trace[UIMM_END + i];
-                    }
-                }
-            }
-            Field::Pc => perturb_field(&mut trace[PC], rng),
-            Field::Rs1Bits => {
-                perturb_reg_bits(trace, rng, RS1_BITS_END);
-            }
-            Field::Rs2Bits => {
-                perturb_reg_bits(trace, rng, RS2_BITS_END);
-            }
-            Field::RdBits => {
-                perturb_reg_bits(trace, rng, RD_BITS_END);
-            }
-            _ => todo!(),
+impl Field for Rd {
+    fn perturb<E: StarkField>(trace: &mut [E; TRACE_WIDTH], rng: &mut TestRng) {
+        perturb_reg::<RD_END, _>(trace, rng);
+    }
+}
+
+impl Field for Rs1 {
+    fn perturb<E: StarkField>(trace: &mut [E; TRACE_WIDTH], rng: &mut TestRng) {
+        perturb_reg::<RS1_END, _>(trace, rng);
+    }
+}
+
+impl Field for Rs2 {
+    fn perturb<E: StarkField>(trace: &mut [E; TRACE_WIDTH], rng: &mut TestRng) {
+        perturb_reg::<RS2_END, _>(trace, rng);
+    }
+}
+
+impl Field for Imm {
+    fn perturb<E: StarkField>(trace: &mut [E; TRACE_WIDTH], rng: &mut TestRng) {
+        perturb_bits::<12, IMM_END, _>(trace, rng);
+    }
+}
+
+impl Field for Uimm {
+    fn perturb<E: StarkField>(trace: &mut [E; TRACE_WIDTH], rng: &mut TestRng) {
+        perturb_bits::<20, UIMM_END, _>(trace, rng);
+    }
+}
+
+impl Field for RdBits {
+    fn perturb<E: StarkField>(trace: &mut [E; TRACE_WIDTH], rng: &mut TestRng) {
+        perturb_reg_bits::<RD_BITS_END, _>(trace, rng);
+    }
+}
+
+impl Field for Rs1Bits {
+    fn perturb<E: StarkField>(trace: &mut [E; TRACE_WIDTH], rng: &mut TestRng) {
+        perturb_reg_bits::<RS1_BITS_END, _>(trace, rng);
+    }
+}
+
+impl Field for Rs2Bits {
+    fn perturb<E: StarkField>(trace: &mut [E; TRACE_WIDTH], rng: &mut TestRng) {
+        perturb_reg_bits::<RS2_BITS_END, _>(trace, rng);
+    }
+}
+
+impl Field for Pc {
+    fn perturb<E: StarkField>(trace: &mut [E; TRACE_WIDTH], rng: &mut TestRng) {
+        perturb_field(&mut trace[PC], rng);
+    }
+}
+
+fn perturb_bits<const N: usize, const OFFSET: usize, E: StarkField>(
+    trace: &mut [E; TRACE_WIDTH],
+    rng: &mut TestRng,
+) {
+    let change = to_binary::<N>(rng.gen_range(1..(1u64 << N)));
+    for i in 0..N {
+        if E::from(change[i]) == E::ONE {
+            trace[OFFSET + i] = E::ONE - trace[OFFSET + i];
         }
     }
 }
@@ -64,22 +106,18 @@ fn perturb_field<E: StarkField>(field: &mut E, rng: &mut TestRng) {
     *field = new;
 }
 
-fn perturb_reg<E: StarkField>(trace: &mut [E; TRACE_WIDTH], rng: &mut TestRng, offset: usize) {
-    let change = to_binary::<REG_NUM_BITS>(rng.gen_range(1..(1u32 << REG_NUM_BITS)));
-    for i in 0..REG_NUM_BITS {
-        if E::from(change[i]) == E::ONE {
-            trace[offset + i] = E::ONE - trace[offset + i];
-        }
-    }
+fn perturb_reg<const OFFSET: usize, E: StarkField>(
+    trace: &mut [E; TRACE_WIDTH],
+    rng: &mut TestRng,
+) {
+    perturb_bits::<REG_NUM_BITS, OFFSET, _>(trace, rng);
 }
 
-fn perturb_reg_bits<E: StarkField>(trace: &mut [E; TRACE_WIDTH], rng: &mut TestRng, offset: usize) {
-    let change = to_binary::<REG_BITS>(rng.gen_range(1..(1u64 << REG_BITS)) as u32);
-    for i in 0..REG_BITS {
-        if E::from(change[i]) == E::ONE {
-            trace[offset + i] = E::ONE - trace[offset + i];
-        }
-    }
+fn perturb_reg_bits<const OFFSET: usize, E: StarkField>(
+    trace: &mut [E; TRACE_WIDTH],
+    rng: &mut TestRng,
+) {
+    perturb_bits::<REG_BITS, OFFSET, _>(trace, rng);
 }
 
 #[cfg(test)]
@@ -91,7 +129,7 @@ mod test {
             let binary = super::to_binary::<N>(i);
             let mut val = 0;
             for (i, bit) in binary.iter().enumerate() {
-                val |= bit << (N - i - 1);
+                val |= (*bit as u64) << (N - i - 1);
             }
             assert_eq!(val, i, "{i} to binary: {:?}", binary);
         }

@@ -64,9 +64,15 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
                         Op::Auipc { u_imm, .. } => {
                             // is pc signed?
                             let pc = self.interp.state.pc as i32;
-                            let uimm = i32::from(u_imm);
                             // TODO: this is essentially re-doing an addition
-                            if pc.overflowing_add(uimm).1 {
+                            if pc.overflowing_add(u_imm).1 {
+                                current_trace[trace::H_0] = E::from(1u32);
+                            }
+                        }
+                        Op::Addi { i_imm, rs1, .. } => {
+                            let rs1 = self.interp.state.x[rs1] as i32;
+                            // TODO: this is essentially re-doing an addition
+                            if rs1.overflowing_add(i_imm).1 {
                                 current_trace[trace::H_0] = E::from(1u32);
                             }
                         }

@@ -1,12 +1,13 @@
 mod common;
 use common::ops::*;
+use common::perturb::*;
 use common::*;
 use proptest::prelude::*;
 use rv_tracer::{prove, verify};
 use winterfell::math::fields::f128::BaseElement;
 
 macro_rules! generate_tests {
-    ($op:ty) => {
+    ($op:ty, $($perturb:ty),*) => {
         paste::paste! {
             proptest! {
                 #[test]
@@ -17,13 +18,17 @@ macro_rules! generate_tests {
                     prop_assert!(verify::<Blake3_192>(proof.unwrap()).is_ok());
                 }
 
-                #[test]
-                #[should_panic(expected = "did not evaluate to ZERO")]
-                #[allow(non_snake_case)]
-                fn [<test_ $op _neg>](trace: PerturbedTrace<BaseElement, $op>) {
-                    // winterfell panics if a constraint does not evaluate to 0 on the trace
-                    let _ = prove::<Blake3_192>(trace.trace_table, PROOF_OPTIONS);
-                }
+
+                $(
+                    #[test]
+                    #[should_panic(expected = "did not evaluate to ZERO")]
+                    #[allow(non_snake_case)]
+                    fn [<test_ $op _ $perturb _neg>](trace: PerturbedTrace<BaseElement, $op, $perturb>) {
+                        // winterfell panics if a constraint does not evaluate to 0 on the trace
+                        let _ = prove::<Blake3_192>(trace.trace_table, PROOF_OPTIONS);
+                    }
+                )*
+
 
                 #[test]
                 #[allow(non_snake_case)]
@@ -37,5 +42,6 @@ macro_rules! generate_tests {
     };
 }
 
-generate_tests!(Lui);
-generate_tests!(Auipc);
+generate_tests!(Lui, Rd, Uimm);
+generate_tests!(Auipc, Rd, Uimm, Pc);
+generate_tests!(Addi, Rd, Rs1, Imm);
