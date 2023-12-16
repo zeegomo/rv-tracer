@@ -90,14 +90,23 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
                                 current_trace[trace::H_1] = E::from(1u32);
                             }
                         }
+                        Op::Jalr { i_imm, rs1, .. } => {
+                            let pc = self.interp.state.pc as i32;
+                            if pc.overflowing_add(4).1 {
+                                current_trace[trace::H_0] = E::from(1u32);
+                            }
+                            let rs1 = self.interp.state.x[rs1] as i32;
+                            if rs1.overflowing_add(i_imm).1 {
+                                current_trace[trace::H_1] = E::from(1u32);
+                            }
+
+                            current_trace[trace::H_2] = E::from((i_imm as u32 ^ rs1 as u32) & 1);
+                        }
                         _ => {}
                     }
                     for i in 0..TRACE_WIDTH {
                         trace[i].push(current_trace[i]);
                     }
-                }
-                Ok(_) => {
-                    break;
                 }
                 Err(e) => {
                     log::error!("execution halted due to: {:?}", e);

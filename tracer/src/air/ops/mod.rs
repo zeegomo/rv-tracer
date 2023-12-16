@@ -36,7 +36,8 @@ air! {
 
 // FIX: we ignore constraints for rd = 0 but we should not do that
 // h0, h1 overflow bits
-// TODO: h2 = xor rs1[0], simm[0]
+// overflow before or after adding h2?
+// TODO: h2 can be directly substituted in the second constraint
 air! {
     name = jalr,
     opcode = "1100111",
@@ -44,8 +45,8 @@ air! {
     parse = rs1 / rd,
     constraints =
         rd - (current[PC] + E::from(4u32)) => 1,
-        (next[PC] + h1 * E::from(1u64 << 32)) - (rs1 + simm - h2) => 1
-        h2 -
+        (next[PC] + h1 * E::from(1u64 << 32)) - (rs1 + simm - h2) => 1,
+        h2 - (current[RS1_BITS_END + 31] + current[IMM_END + 11] - E::from(2u32) * current[RS1_BITS_END + 31] * current[IMM_END + 11]) => 2
 }
 
 // (next[PC] + h1 * E::from(1u64 << 32)) - (current[PC] + jal_offset) => 1

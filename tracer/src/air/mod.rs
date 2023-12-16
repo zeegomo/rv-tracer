@@ -25,6 +25,7 @@ impl Air for RiscvAir {
         degrees.extend(ops::auipc::constraint_degrees());
         degrees.extend(ops::addi::constraint_degrees());
         degrees.extend(ops::jal::constraint_degrees());
+        degrees.extend(ops::jalr::constraint_degrees());
         assert_eq!(TRACE_WIDTH, trace_info.width());
         // We also need to specify the exact number of assertions we will place against the
         // execution trace. This number must be the same as the number of items in a vector
@@ -49,7 +50,8 @@ impl Air for RiscvAir {
         index += ops::lui::evaluate_transitions(frame, periodic_values, &mut result[index..]);
         index += ops::auipc::evaluate_transitions(frame, periodic_values, &mut result[index..]);
         index += ops::addi::evaluate_transitions(frame, periodic_values, &mut result[index..]);
-        ops::jal::evaluate_transitions(frame, periodic_values, &mut result[index..]);
+        index += ops::jal::evaluate_transitions(frame, periodic_values, &mut result[index..]);
+        ops::jalr::evaluate_transitions(frame, periodic_values, &mut result[index..]);
     }
 
     fn get_assertions(&self) -> Vec<Assertion<Self::BaseField>> {
