@@ -802,8 +802,6 @@ dependencies = [
  "rvsim",
  "seq-macro",
  "trace-defs",
- "winter-rand-utils",
- "winter-utils 0.7.2",
  "winterfell",
 ]
 
@@ -1260,7 +1258,7 @@ dependencies = [
  "winter-crypto",
  "winter-fri",
  "winter-math",
- "winter-utils 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "winter-utils",
 ]
 
 [[package]]
@@ -1272,7 +1270,7 @@ dependencies = [
  "blake3",
  "sha3",
  "winter-math",
- "winter-utils 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "winter-utils",
 ]
 
 [[package]]
@@ -1283,7 +1281,7 @@ checksum = "d3769f453f00738ba761ce94b63e7fc5a08903ab1d8c3e2a27c46d4327290cd0"
 dependencies = [
  "winter-crypto",
  "winter-math",
- "winter-utils 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "winter-utils",
 ]
 
 [[package]]
@@ -1292,7 +1290,7 @@ version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f51c43e0756c89607b74a2da621ca472306bfb1ecc352a44a97dfe73cd0503d"
 dependencies = [
- "winter-utils 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "winter-utils",
 ]
 
 [[package]]
@@ -1306,20 +1304,8 @@ dependencies = [
  "winter-crypto",
  "winter-fri",
  "winter-math",
- "winter-utils 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "winter-utils",
 ]
-
-[[package]]
-name = "winter-rand-utils"
-version = "0.7.0"
-dependencies = [
- "rand",
- "winter-utils 0.7.2",
-]
-
-[[package]]
-name = "winter-utils"
-version = "0.7.2"
 
 [[package]]
 name = "winter-utils"
@@ -1337,7 +1323,7 @@ dependencies = [
  "winter-crypto",
  "winter-fri",
  "winter-math",
- "winter-utils 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "winter-utils",
 ]
 
 [[package]]
