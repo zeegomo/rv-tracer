@@ -45,6 +45,7 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
         let clock = self.interp.clock.read_cycle() as u32;
         trace[trace::BODY] = E::ONE;
         trace[trace::CYCLE] = clock.into();
+        assert!(clock < 100);
         trace
     }
 
@@ -123,6 +124,10 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
         let mut trace = self.run::<E>();
         let trace_len = trace[0].len();
         log::debug!("program completed in {} cycles", trace_len);
+        assert!(
+            trace_len > 0,
+            "the trace length was 0, maybe something went wrong?"
+        );
         let next_power_of_two = core::cmp::max(trace_len.next_power_of_two(), MIN_LEN);
         let pad_len = next_power_of_two - trace_len;
         log::debug!("padding trace to {} cycles", next_power_of_two);

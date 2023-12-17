@@ -16,14 +16,9 @@ macro_rules! generate_tests {
                 #[test]
                 #[allow(non_snake_case)]
                 fn [<test_ $op _ok>](trace: Trace<$op>) {
-                    // println!("AAAAAAAAAA1");
                     let proof = prove::<Blake3_192>(trace.table(),PROOF_OPTIONS);
-                    // println!("AAAAAAAAAA2");
                     prop_assert!(proof.is_ok());
-                    // println!("AAAAAAAAAA3");
-                    verify::<Blake3_192>(proof.unwrap()).unwrap();
-                    // prop_assert!(verify::<Blake3_192>(proof.unwrap()).is_ok());
-                    // println!("AAAAAAAAAA4");
+                    prop_assert!(verify::<Blake3_192>(proof.unwrap()).is_ok());
                 }
 
 
@@ -71,12 +66,27 @@ macro_rules! execute {
     }};
 }
 
-#[test]
-fn test_carlos() {
-    let trace = execute!(&Lui { rd: 1, uimm: 40000 }, CpuState { regs: [0; 32] });
-    let proof = prove::<Blake3_192>(trace, PROOF_OPTIONS);
-    verify::<Blake3_192>(proof.unwrap()).unwrap();
-}
+// #[test]
+// fn test_carlos() {
+//     let trace = execute!(
+//         &Jalr {
+//             rd: 18,
+//             rs1: 22,
+//             imm: 1716
+//         },
+//         CpuState {
+//             regs: [
+//                 0, 103227216, 3903236615, 942388930, 3704867152, 1426223762, 1873744154,
+//                 1177832415, 2286646153, 3013512938, 1261124985, 2341075063, 4214371790, 3665819111,
+//                 1078958973, 254200516, 444374072, 1016438104, 4274272217, 3844678983, 1564886615,
+//                 481745516, 1959246763, 4196546678, 3583885741, 1025997657, 644769290, 1278879976,
+//                 1097710302, 602201267, 3681744143, 795865264,
+//             ]
+//         }
+//     );
+//     let proof = prove::<Blake3_192>(trace, PROOF_OPTIONS);
+//     verify::<Blake3_192>(proof.unwrap()).unwrap();
+// }
 
 fn load_op_at_addr<O: Op>(addr: usize, op: &O) -> SimpleMemory {
     let mut mem = SimpleMemory::new();

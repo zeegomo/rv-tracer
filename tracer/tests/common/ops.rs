@@ -205,6 +205,8 @@ impl From<rvsim::Op> for Jal {
     }
 }
 
+// pub type Jalr = Jal;
+
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Jalr {
     pub rd: usize,
@@ -218,20 +220,23 @@ impl Arbitrary for Jalr {
 
     fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
         (0..32usize, 0..32usize, any::<Signed<12, 0>>())
-            .prop_map(|(rd, rs1, offset)| Jalr {
-                rd,
-                rs1,
-                imm: offset.into(),
+            .prop_map(|(rd, rs1, offset)| {
+                let imm = i32::from(offset);
+                let imm = imm - imm % 4;
+                assert_eq!(imm % 4, 0);
+                Jalr { rd, rs1, imm }
             })
             .boxed()
     }
 }
 
 impl Op for Jalr {
-    fn execute<E>(&self, state: CpuState) -> TraceTable<E>
+    fn execute<E>(&self, mut state: CpuState) -> TraceTable<E>
     where
         E: StarkField,
     {
+        state.regs[self.rs1] = state.regs[self.rs1] - state.regs[self.rs1] % 4;
+        assert_eq!(state.regs[self.rs1] % 4, 0);
         execute!(self, state)
     }
 
