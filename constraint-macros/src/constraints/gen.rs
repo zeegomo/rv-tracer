@@ -80,23 +80,26 @@ pub fn generate(config: Air) -> TokenStream {
                 ) -> usize {
                     let current = frame.current();
                     let next = frame.next();
-                    let is_body = current[BODY];
                     let mut index = 0;
-                    assert!(result.len() >= constraint_degrees().len(), "result array too small");
+
+                    let body_flag = current[BODY];
+                    let funct3_flag = funct3_flag(&current[FUNCT3_END..FUNCT3_END + 3]);
+                    let op_flag = op_flag(&current[OPCODE_END..OPCODE_END + 7]);
+
+                    if body_flag == E::ZERO || funct3_flag == E::ZERO || op_flag == E::ZERO{
+                        return TOT_CNT * #n_constraints;
+                    }
+
+                    debug_assert!(result.len() >= constraint_degrees().len(), "result array too small");
 
                     for rrd in 1..=RD_CNT {
+                        let rd_flag = rd_flag(rrd as u8, &current[RD_END..RD_END + 5]);
                         for rrs1 in 0..RS1_CNT {
+                            let rs1_flag = rs1_flag(rrs1 as u8, &current[RS1_END..RS1_END + 5]);
                             for rrs2 in 0..RS2_CNT {
+                                let rs2_flag = rs2_flag(rrs2 as u8, &current[RS2_END..RS2_END + 5]);
                                 for shamt in 0..SHAMT_CNT {
-
-                                    let rd_flag = rd_flag(rrd as u8, &current[RD_END..RD_END + 5]);
-                                    let rs1_flag = rs1_flag(rrs1 as u8, &current[RS1_END..RS1_END + 5]);
-                                    let rs2_flag = rs2_flag(rrs2 as u8, &current[RS2_END..RS2_END + 5]);
-                                    let funct3_flag = funct3_flag(&current[FUNCT3_END..FUNCT3_END + 3]);
                                     let shamt_flag = shamt_flag(shamt as u8, &current[SHAMT_END..SHAMT_END + 5]);
-                                    let op_flag = op_flag(&current[OPCODE_END..OPCODE_END + 7]);
-                                    let body_flag = current[BODY];
-
                                     let cumulative_flag = op_flag * rd_flag * rs1_flag * rs2_flag * body_flag * funct3_flag * shamt_flag;
                                     let simm = get_signed::<12, 12, _>(&current[IMM_END..IMM_END + 12]);
                                     let upper_imm = get_signed::<32, 20, _>(&current[UIMM_END..UIMM_END + 20]);
