@@ -91,30 +91,29 @@ pub fn generate(config: Air) -> TokenStream {
                     }
 
                     debug_assert!(result.len() >= constraint_degrees().len(), "result array too small");
+                    let simm = get_i_imm(&current);
+                    let upper_imm = get_u_imm(&current);
+                    let pc = current[PC];
+                    let h0 = next[H_0];
+                    let h1 = current[H_1];
+                    let h2 = current[H_2];
+                    let h3 = current[H_3];
+                    let h4 = current[H_4];
+                    let h5 = current[H_5];
+                    let jal_offset = get_jal_offset(&current);
 
                     for rrd in 1..=RD_CNT {
                         let rd_flag = rd_flag(rrd as u8, &current[RD_END..RD_END + 5]);
+                        let rd = next[REGISTER_START + rrd];
                         for rrs1 in 0..RS1_CNT {
+                            let rs1 = current[REGISTER_START + rrs1];
                             let rs1_flag = rs1_flag(rrs1 as u8, &current[RS1_END..RS1_END + 5]);
                             for rrs2 in 0..RS2_CNT {
+                                let rs2 = current[REGISTER_START + rrs2];
                                 let rs2_flag = rs2_flag(rrs2 as u8, &current[RS2_END..RS2_END + 5]);
                                 for shamt in 0..SHAMT_CNT {
                                     let shamt_flag = shamt_flag(shamt as u8, &current[SHAMT_END..SHAMT_END + 5]);
                                     let cumulative_flag = op_flag * rd_flag * rs1_flag * rs2_flag * body_flag * funct3_flag * shamt_flag;
-                                    let simm = get_signed::<12, 12, _>(&current[IMM_END..IMM_END + 12]);
-                                    let upper_imm = get_signed::<32, 20, _>(&current[UIMM_END..UIMM_END + 20]);
-                                    let pc = current[PC];
-                                    let h0 = next[H_0];
-                                    let h1 = current[H_1];
-                                    let h2 = current[H_2];
-                                    let h3 = current[H_3];
-                                    let h4 = current[H_4];
-                                    let h5 = current[H_5];
-                                    let jal_offset = jal_offset(&current[JAL_OFFSET_END..JAL_OFFSET_END + 20]);
-                                    let rd = next[REGISTER_START + rrd];
-                                    let rs1 = current[REGISTER_START + rrs1];
-                                    let rs2 = current[REGISTER_START + rrs2];
-                                    
 
                                     #(
                                         result[index] = (#c_exprs) * cumulative_flag;
@@ -138,6 +137,18 @@ pub fn generate(config: Air) -> TokenStream {
                         }
                     }
                     degrees
+                }
+
+                fn get_i_imm<E: FieldElement>(trace: &[E]) -> E {
+                    get_signed::<12, 12, _>(&trace[IMM_END..IMM_END + 12])
+                }
+
+                fn get_u_imm<E: FieldElement>(trace: &[E]) -> E {
+                    get_signed::<32, 20, _>(&trace[UIMM_END..UIMM_END + 20])
+                }
+
+                fn get_jal_offset<E: FieldElement>(trace: &[E]) -> E {
+                    jal_offset(&trace[JAL_OFFSET_END..JAL_OFFSET_END + 20])
                 }
 
                 fn rd_flag<E: FieldElement>(val: u8, test: &[E]) -> E {
