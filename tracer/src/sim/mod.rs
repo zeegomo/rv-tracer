@@ -59,6 +59,7 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
             trace[i].push(current_trace[i]);
         }
         loop {
+            let prev = self.interp.state.clone();
             match self.interp.step() {
                 Ok(op) => {
                     self.executed.push(op.clone());
@@ -68,21 +69,22 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
                     match op {
                         Op::Auipc { u_imm, .. } => {
                             // is pc signed?
-                            let pc = self.interp.state.pc as i32;
+                            let pc = prev.pc as i32;
                             // TODO: this is essentially re-doing an addition
                             if pc.overflowing_add(u_imm).1 {
                                 current_trace[trace::H_0] = E::from(1u32);
                             }
                         }
                         Op::Addi { i_imm, rs1, .. } => {
-                            let rs1 = self.interp.state.x[rs1] as i32;
+                            let rs1 = prev.x[rs1] as i32;
                             // TODO: this is essentially re-doing an addition
                             if rs1.overflowing_add(i_imm).1 {
                                 current_trace[trace::H_0] = E::from(1u32);
                             }
                         }
                         Op::Jal { j_imm, .. } => {
-                            let pc = self.interp.state.pc as i32;
+                            // is pc signed?
+                            let pc = prev.pc as i32;
                             if pc.overflowing_add(4).1 {
                                 current_trace[trace::H_0] = E::from(1u32);
                             }
@@ -92,12 +94,12 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
                             }
                         }
                         Op::Jalr { i_imm, rs1, .. } => {
-                            let pc = self.interp.state.pc as i32;
+                            let pc = prev.pc as i32;
                             if pc.overflowing_add(4).1 {
                                 current_trace[trace::H_0] = E::from(1u32);
                             }
-                            let rs1 = self.interp.state.x[rs1] as i32;
-                            if rs1.overflowing_add(i_imm).1 {
+                            let rs1 = prev.x[rs1] as i32;
+                            if rs1.overflowing_add(i_imm).1 || rs1 + i_imm < 0 {
                                 current_trace[trace::H_1] = E::from(1u32);
                             }
 
