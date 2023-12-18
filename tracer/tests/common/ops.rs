@@ -235,7 +235,12 @@ impl Op for Jalr {
     where
         E: StarkField,
     {
-        state.regs[self.rs1] = state.regs[self.rs1] - state.regs[self.rs1] % 4;
+        let mut rs1 = state.regs[self.rs1] as i32;
+        // FIX: the result should be 4-bytes aligned
+        // this is a dirty hack to make it work without ad-hoc strategies
+        // but does not cover all possible cases
+        rs1 = rs1 - rs1 % 4;
+        state.regs[self.rs1] = rs1 as u32;
         assert_eq!(state.regs[self.rs1] % 4, 0);
         execute!(self, state)
     }
