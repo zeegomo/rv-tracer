@@ -25,7 +25,7 @@ paste = "1"
 criterion = "0.3"
 
 [profile.test]
-opt-level = 3
+opt-level = 2
 # faster tests
 [profile.test.package.proptest]
 opt-level = 3
