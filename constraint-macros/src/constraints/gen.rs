@@ -86,7 +86,7 @@ pub fn generate(config: Air) -> TokenStream {
                     let funct3_flag = funct3_flag(&current[FUNCT3_END..FUNCT3_END + 3]);
                     let op_flag = op_flag(&current[OPCODE_END..OPCODE_END + 7]);
 
-                    if body_flag == E::ZERO || funct3_flag == E::ZERO || op_flag == E::ZERO{
+                    if body_flag == E::ZERO || funct3_flag == E::ZERO || op_flag == E::ZERO {
                         return TOT_CNT * #n_constraints;
                     }
 
@@ -95,11 +95,11 @@ pub fn generate(config: Air) -> TokenStream {
                     let upper_imm = get_u_imm(&current);
                     let pc = current[PC];
                     let h0 = next[H_0];
-                    let h1 = current[H_1];
-                    let h2 = current[H_2];
-                    let h3 = current[H_3];
-                    let h4 = current[H_4];
-                    let h5 = current[H_5];
+                    let h1 = next[H_1];
+                    let h2 = next[H_2];
+                    let h3 = next[H_3];
+                    let h4 = next[H_4];
+                    let h5 = next[H_5];
                     let jal_offset = get_jal_offset(&current);
 
                     for rrd in 1..=RD_CNT {
@@ -114,7 +114,6 @@ pub fn generate(config: Air) -> TokenStream {
                                 for shamt in 0..SHAMT_CNT {
                                     let shamt_flag = shamt_flag(shamt as u8, &current[SHAMT_END..SHAMT_END + 5]);
                                     let cumulative_flag = op_flag * rd_flag * rs1_flag * rs2_flag * body_flag * funct3_flag * shamt_flag;
-
                                     #(
                                         result[index] = (#c_exprs) * cumulative_flag;
                                         index += 1;
@@ -124,8 +123,7 @@ pub fn generate(config: Air) -> TokenStream {
                         }
                     }
 
-                    // return the number of use constraint columns
-                
+                    // return the number of used constraint columns
                     TOT_CNT * #n_constraints
                 }
 
