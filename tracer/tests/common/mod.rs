@@ -93,15 +93,6 @@ impl<O: Op + Send + 'static> Trace<O> {
     // this is not actually dead
     #[allow(dead_code)]
     pub fn table<E: StarkField + 'static>(&self) -> TraceTable<E> {
-        // let op = self.op.clone();
-        // let state = self.state.clone();
-        // let table = std::thread::spawn(move || op.execute(state));
-        // std::thread::sleep(std::time::Duration::from_secs(1));
-        // if !table.is_finished() {
-        //     panic!("{:?}", self);
-        // } else {
-        //     table.join().unwrap()
-        // }
         self.op.execute(self.state.clone())
     }
 }
@@ -132,12 +123,15 @@ where
                 _phantom: std::marker::PhantomData,
             })
             .prop_perturb(|mut trace, mut rng| {
-                let mut row = [E::ZERO; TRACE_WIDTH];
-                trace.trace_table.read_row_into(0, &mut row);
+                let mut prev = [E::ZERO; TRACE_WIDTH];
+                let mut next = [E::ZERO; TRACE_WIDTH];
+                trace.trace_table.read_row_into(0, &mut prev);
+                trace.trace_table.read_row_into(1, &mut next);
 
-                P::perturb(&mut row, &mut rng);
+                P::perturb(&mut prev, &mut next, &mut rng);
 
-                trace.trace_table.update_row(0, &row);
+                trace.trace_table.update_row(0, &prev);
+                trace.trace_table.update_row(1, &next);
                 trace
             })
             .boxed()
