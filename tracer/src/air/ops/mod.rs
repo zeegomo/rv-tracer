@@ -52,16 +52,17 @@ air! {
         h2 - (current[RS1_BITS_END + 31] + current[IMM_END + 11] - E::from(2u32) * current[RS1_BITS_END + 31] * current[IMM_END + 11]) => 2
 }
 
-// // TODO: signed version
-// air!(
-//     name = slti,
-//     opcode = "0010011",
-//     funct3 = "010",
-//     parse = rs1 / rd,
-//     constraints =
-//         rd * h0 + rs1 - simm => 2,
-//         (E::ONE - rd) * h1 + rs1 - simm => 2
-// );
+// If rs1 < immediate, then rd = 1. This means there is 0 < C < 2^32 s.t. rs1 + C = immediate. H0 is C.
+// If rs1 >= immediate, then rd = 0. This means there is 0 <= C' < 2^32 s.t. immediate + C = rs1. H1 is C'.
+air!(
+    name = slti,
+    opcode = "0010011",
+    funct3 = "010",
+    parse = rs1 / rd,
+    constraints =
+        rd * (h0 + rs1 - simm) => 2,
+        (E::ONE - rd) * (h1 + simm - rs1) => 2
+);
 
 // // TODO: add range checks to H0 and H1
 // // This check uses 2 additional helper registers to ensure the computation was

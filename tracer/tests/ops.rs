@@ -50,3 +50,4 @@ generate_tests!(Auipc, Rd, Uimm, Pc);
 generate_tests!(Addi, Rd, Rs1, Imm);
 generate_tests!(Jal, Rd, Pc);
 generate_tests!(Jalr, Rd, Pc, Rs1);
+generate_tests!(Slti, Rd, Rs1, Imm);

@@ -266,6 +266,57 @@ impl From<rvsim::Op> for Jalr {
     }
 }
 
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct Slti {
+    pub rd: usize,
+    pub rs1: usize,
+    pub imm: i32,
+}
+
+impl Arbitrary for Slti {
+    type Parameters = ();
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+        (1..2usize, 0..1usize, any::<Signed<12, 0>>())
+            .prop_map(|(rd, rs1, imm)| Slti {
+                rd,
+                rs1,
+                imm: imm.into(),
+            })
+            .boxed()
+    }
+}
+
+impl Op for Slti {
+    fn execute<E>(&self, state: CpuState) -> TraceTable<E>
+    where
+        E: StarkField,
+    {
+        execute!(self, state)
+    }
+
+    fn to_op(&self) -> u32 {
+        let imm = (self.imm as u32) << 20;
+        let rs1 = (self.rs1 << 15) as u32;
+        let rd = (self.rd << 7) as u32;
+        0b0010011 | imm | rs1 | rd | 0b010 << 12
+    }
+}
+
+impl From<rvsim::Op> for Slti {
+    fn from(other: rvsim::Op) -> Self {
+        match other {
+            rvsim::Op::Slti { rd, rs1, i_imm } => Self {
+                rd,
+                rs1,
+                imm: i_imm,
+            },
+            _ => panic!("wrong op type"),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 struct Signed<const N: usize, const OFFSET: usize> {
     inner: i32,

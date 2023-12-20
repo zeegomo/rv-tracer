@@ -42,6 +42,7 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
         for i in 0..32 {
             trace[trace::INS_END + i] = ((pc >> (31 - i)) & 1).into();
         }
+
         let clock = self.interp.clock.read_cycle() as u32;
         trace[trace::BODY] = E::ONE;
         trace[trace::CYCLE] = clock.into();
@@ -104,6 +105,14 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
                             }
 
                             current_trace[trace::H_2] = E::from((i_imm as u32 ^ rs1 as u32) & 1);
+                        }
+                        Op::Slti { i_imm, rs1, .. } => {
+                            let rs1 = prev.x[rs1] as i32;
+                            if rs1 < i_imm {
+                                current_trace[trace::H_0] = E::from((i_imm - rs1) as u32);
+                            } else {
+                                current_trace[trace::H_1] = E::from((rs1 - i_imm) as u32);
+                            }
                         }
                         _ => {}
                     }
