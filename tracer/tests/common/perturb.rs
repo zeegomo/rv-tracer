@@ -29,60 +29,100 @@ pub struct Rs2Bits;
 pub struct Pc;
 
 pub trait Field: Debug {
-    fn perturb<E: StarkField>(trace: &mut [E; TRACE_WIDTH], rng: &mut TestRng);
+    fn perturb<E: StarkField>(
+        prev: &mut [E; TRACE_WIDTH],
+        next: &mut [E; TRACE_WIDTH],
+        rng: &mut TestRng,
+    );
 }
 
 impl Field for Rd {
-    fn perturb<E: StarkField>(trace: &mut [E; TRACE_WIDTH], rng: &mut TestRng) {
-        perturb_reg::<RD_END, _>(trace, rng);
+    fn perturb<E: StarkField>(
+        _prev: &mut [E; TRACE_WIDTH],
+        next: &mut [E; TRACE_WIDTH],
+        rng: &mut TestRng,
+    ) {
+        perturb_reg::<RD_END, _>(next, rng);
     }
 }
 
 impl Field for Rs1 {
-    fn perturb<E: StarkField>(trace: &mut [E; TRACE_WIDTH], rng: &mut TestRng) {
-        perturb_reg::<RS1_END, _>(trace, rng);
+    fn perturb<E: StarkField>(
+        prev: &mut [E; TRACE_WIDTH],
+        _next: &mut [E; TRACE_WIDTH],
+        rng: &mut TestRng,
+    ) {
+        perturb_reg::<RS1_END, _>(prev, rng);
     }
 }
 
 impl Field for Rs2 {
-    fn perturb<E: StarkField>(trace: &mut [E; TRACE_WIDTH], rng: &mut TestRng) {
-        perturb_reg::<RS2_END, _>(trace, rng);
+    fn perturb<E: StarkField>(
+        prev: &mut [E; TRACE_WIDTH],
+        _next: &mut [E; TRACE_WIDTH],
+        rng: &mut TestRng,
+    ) {
+        perturb_reg::<RS2_END, _>(prev, rng);
     }
 }
 
 impl Field for Imm {
-    fn perturb<E: StarkField>(trace: &mut [E; TRACE_WIDTH], rng: &mut TestRng) {
-        perturb_bits::<12, IMM_END, _>(trace, rng);
+    fn perturb<E: StarkField>(
+        prev: &mut [E; TRACE_WIDTH],
+        _next: &mut [E; TRACE_WIDTH],
+        rng: &mut TestRng,
+    ) {
+        perturb_bits::<12, IMM_END, _>(prev, rng);
     }
 }
 
 impl Field for Uimm {
-    fn perturb<E: StarkField>(trace: &mut [E; TRACE_WIDTH], rng: &mut TestRng) {
-        perturb_bits::<20, UIMM_END, _>(trace, rng);
+    fn perturb<E: StarkField>(
+        prev: &mut [E; TRACE_WIDTH],
+        _next: &mut [E; TRACE_WIDTH],
+        rng: &mut TestRng,
+    ) {
+        perturb_bits::<20, UIMM_END, _>(prev, rng);
     }
 }
 
 impl Field for RdBits {
-    fn perturb<E: StarkField>(trace: &mut [E; TRACE_WIDTH], rng: &mut TestRng) {
-        perturb_reg_bits::<RD_BITS_END, _>(trace, rng);
+    fn perturb<E: StarkField>(
+        _prev: &mut [E; TRACE_WIDTH],
+        next: &mut [E; TRACE_WIDTH],
+        rng: &mut TestRng,
+    ) {
+        perturb_reg_bits::<RD_BITS_END, _>(next, rng);
     }
 }
 
 impl Field for Rs1Bits {
-    fn perturb<E: StarkField>(trace: &mut [E; TRACE_WIDTH], rng: &mut TestRng) {
-        perturb_reg_bits::<RS1_BITS_END, _>(trace, rng);
+    fn perturb<E: StarkField>(
+        _prev: &mut [E; TRACE_WIDTH],
+        next: &mut [E; TRACE_WIDTH],
+        rng: &mut TestRng,
+    ) {
+        perturb_reg_bits::<RS1_BITS_END, _>(next, rng);
     }
 }
 
 impl Field for Rs2Bits {
-    fn perturb<E: StarkField>(trace: &mut [E; TRACE_WIDTH], rng: &mut TestRng) {
-        perturb_reg_bits::<RS2_BITS_END, _>(trace, rng);
+    fn perturb<E: StarkField>(
+        _prev: &mut [E; TRACE_WIDTH],
+        next: &mut [E; TRACE_WIDTH],
+        rng: &mut TestRng,
+    ) {
+        perturb_reg_bits::<RS2_BITS_END, _>(next, rng);
     }
 }
 
 impl Field for Pc {
-    fn perturb<E: StarkField>(trace: &mut [E; TRACE_WIDTH], rng: &mut TestRng) {
-        perturb_field(&mut trace[PC], rng);
+    fn perturb<E: StarkField>(
+        prev: &mut [E; TRACE_WIDTH],
+        _next: &mut [E; TRACE_WIDTH],
+        rng: &mut TestRng,
+    ) {
+        perturb_field(&mut prev[PC], rng);
     }
 }
 
