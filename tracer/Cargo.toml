@@ -23,7 +23,8 @@ proptest = "1.0.0"
 proptest-derive = "0.4"
 paste = "1"
 criterion = "0.3"
-
+quickcheck = "1"
+quickcheck_macros = "1"
 
 [[bench]]
 name = "loop"

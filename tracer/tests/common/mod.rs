@@ -2,10 +2,9 @@ pub mod ops;
 pub mod perturb;
 
 use perturb::Field;
-use proptest::prelude::*;
+use quickcheck::{Arbitrary, Gen};
 use rv_tracer::sim::{memory::SimpleMemory, Tracer};
 use std::fmt::Debug;
-use trace_defs::TRACE_WIDTH;
 use winterfell::{
     math::{fields::f128::BaseElement, StarkField},
     FieldExtension, ProofOptions, TraceTable,
@@ -28,9 +27,9 @@ pub const PROOF_OPTIONS: ProofOptions = ProofOptions::new(
     FRI_REMAINDER_MAX_DEGREE,
 );
 
-const OP_ADDR: usize = SimpleMemory::DRAM_BASE as usize;
+const OP_ADDR: u32 = 0x200;
 
-pub trait Op: Arbitrary + Debug + From<rvsim::Op> + Eq + Clone {
+pub trait Op: Arbitrary + Debug + Clone {
     fn to_op(&self) -> u32;
     fn execute<E: StarkField>(&self, state: CpuState) -> TraceTable<E>;
 }
@@ -40,52 +39,22 @@ pub struct CpuState {
     pub regs: [u32; 32],
 }
 
-impl Arbitrary for CpuState {
-    type Parameters = ();
-    type Strategy = BoxedStrategy<Self>;
-
-    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        prop::collection::vec(i32::MIN..=i32::MAX, 31)
-            .prop_map(|regs| CpuState {
-                regs: std::iter::once(0)
-                    .chain(regs)
-                    .map(|x| x as u32)
-                    .collect::<Vec<_>>()
-                    .try_into()
-                    .unwrap(),
-            })
-            .boxed()
-    }
-}
-
-fn load_op_at_addr<O: Op>(addr: usize, op: &O) -> SimpleMemory {
+fn load_op_at_addr<O: Op>(addr: u32, op: &O) -> SimpleMemory {
     let mut mem = SimpleMemory::new();
     let op = op.to_op();
-    mem.load_slice(addr as u32, &op.to_le_bytes());
+    mem.load_slice(addr, &op.to_le_bytes());
     mem
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Trace<O: Op> {
     op: O,
-    state: CpuState,
 }
 
-impl<O: Op> Arbitrary for Trace<O>
-where
-    <O as proptest::arbitrary::Arbitrary>::Strategy: 'static,
-{
-    type Parameters = ();
-    type Strategy = BoxedStrategy<Self>;
-
-    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        // TODO: shrinkg only starting state
-        (any::<CpuState>(), any::<O>())
-            .prop_map(|(state, op)| Trace {
-                op: op.clone(),
-                state: state.clone(),
-            })
-            .boxed()
+impl<O: Op> Arbitrary for Trace<O> {
+    fn arbitrary(g: &mut Gen) -> Self {
+        let op = O::arbitrary(g);
+        Self { op }
     }
 }
 
@@ -93,7 +62,8 @@ impl<O: Op + Send + 'static> Trace<O> {
     // this is not actually dead
     #[allow(dead_code)]
     pub fn table<E: StarkField + 'static>(&self) -> TraceTable<E> {
-        self.op.execute(self.state.clone())
+        let state = CpuState { regs: [0; 32] };
+        self.op.execute(state.clone())
     }
 }
 
@@ -104,38 +74,6 @@ pub struct PerturbedTrace<E: StarkField, O: Op, P: Field> {
     op: O,
     state: CpuState,
     _phantom: std::marker::PhantomData<P>,
-}
-
-impl<E: StarkField, O: Op, P: Field> Arbitrary for PerturbedTrace<E, O, P>
-where
-    <O as proptest::arbitrary::Arbitrary>::Strategy: 'static,
-{
-    type Parameters = ();
-    type Strategy = BoxedStrategy<Self>;
-
-    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        // TODO: shrinkg only starting state
-        (any::<CpuState>(), any::<O>())
-            .prop_map(|(state, op)| PerturbedTrace {
-                op: op.clone(),
-                state: state.clone(),
-                trace_table: op.execute(state),
-                _phantom: std::marker::PhantomData,
-            })
-            .prop_perturb(|mut trace, mut rng| {
-                let mut prev = [E::ZERO; TRACE_WIDTH];
-                let mut next = [E::ZERO; TRACE_WIDTH];
-                trace.trace_table.read_row_into(0, &mut prev);
-                trace.trace_table.read_row_into(1, &mut next);
-
-                P::perturb(&mut prev, &mut next, &mut rng);
-
-                trace.trace_table.update_row(0, &prev);
-                trace.trace_table.update_row(1, &next);
-                trace
-            })
-            .boxed()
-    }
 }
 
 pub fn to_binary<const M: usize>(val: u64) -> [u8; M] {

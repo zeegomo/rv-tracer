@@ -1,10 +1,20 @@
 use super::*;
-use proptest::prelude::*;
+use quickcheck::{Arbitrary as _, Gen};
 
 macro_rules! execute {
     ($op:expr, $state:expr) => {{
         let mut mem = load_op_at_addr(OP_ADDR, $op);
         let mut cpu_state = rvsim::CpuState::new(OP_ADDR as u32);
+        let mut clock = rvsim::SimpleClock::new();
+        cpu_state.x = $state.regs;
+        let interp = rvsim::Interp::new(&mut cpu_state, &mut mem, &mut clock);
+        let tracer = Tracer::new(interp);
+        let trace = tracer.build_trace();
+        trace
+    }};
+    ($op:expr, $state:expr, $pc:expr) => {{
+        let mut mem = load_op_at_addr($pc, $op);
+        let mut cpu_state = rvsim::CpuState::new($pc);
         let mut clock = rvsim::SimpleClock::new();
         cpu_state.x = $state.regs;
         let interp = rvsim::Interp::new(&mut cpu_state, &mut mem, &mut clock);
@@ -21,16 +31,10 @@ pub struct Lui {
 }
 
 impl Arbitrary for Lui {
-    type Parameters = ();
-    type Strategy = BoxedStrategy<Self>;
-
-    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        (0..32usize, any::<Signed<20, 12>>())
-            .prop_map(|(rd, uimm)| Lui {
-                rd,
-                uimm: uimm.into(),
-            })
-            .boxed()
+    fn arbitrary(g: &mut Gen) -> Self {
+        let rd = Reg::arbitrary(g).inner;
+        let uimm = Uimm::arbitrary(g).inner;
+        Self { rd, uimm }
     }
 }
 
@@ -49,32 +53,29 @@ impl Op for Lui {
     }
 }
 
-impl From<rvsim::Op> for Lui {
-    fn from(other: rvsim::Op) -> Self {
-        match other {
-            rvsim::Op::Lui { rd, u_imm } => Self { rd, uimm: u_imm },
-            _ => panic!("wrong op type"),
+impl From<Lui> for rvsim::Op {
+    fn from(other: Lui) -> rvsim::Op {
+        rvsim::Op::Lui {
+            rd: other.rd,
+            u_imm: other.uimm,
         }
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Clone)]
 pub struct Auipc {
     rd: usize,
     uimm: i32,
+    // FIX: is pc signed?
+    pc: u32,
 }
 
 impl Arbitrary for Auipc {
-    type Parameters = ();
-    type Strategy = BoxedStrategy<Self>;
-
-    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        (0..32usize, any::<Signed<20, 12>>())
-            .prop_map(|(rd, uimm)| Auipc {
-                rd,
-                uimm: uimm.into(),
-            })
-            .boxed()
+    fn arbitrary(g: &mut Gen) -> Self {
+        let rd = Reg::arbitrary(g).inner;
+        let uimm = Uimm::arbitrary(g).inner;
+        let pc = u32::arbitrary(g);
+        Self { rd, uimm, pc }
     }
 }
 
@@ -83,7 +84,7 @@ impl Op for Auipc {
     where
         E: StarkField,
     {
-        execute!(self, state)
+        execute!(self, state, self.pc)
     }
 
     fn to_op(&self) -> u32 {
@@ -93,11 +94,11 @@ impl Op for Auipc {
     }
 }
 
-impl From<rvsim::Op> for Auipc {
-    fn from(other: rvsim::Op) -> Self {
-        match other {
-            rvsim::Op::Auipc { rd, u_imm } => Self { rd, uimm: u_imm },
-            _ => panic!("wrong op type"),
+impl From<Auipc> for rvsim::Op {
+    fn from(other: Auipc) -> rvsim::Op {
+        rvsim::Op::Auipc {
+            rd: other.rd,
+            u_imm: other.uimm,
         }
     }
 }
@@ -106,29 +107,31 @@ impl From<rvsim::Op> for Auipc {
 pub struct Addi {
     rd: usize,
     rs1: usize,
+    rs1_val: i32,
     imm: i32,
 }
 
 impl Arbitrary for Addi {
-    type Parameters = ();
-    type Strategy = BoxedStrategy<Self>;
-
-    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        (0..32usize, 0..32usize, any::<Signed<12, 0>>())
-            .prop_map(|(rd, rs1, imm)| Addi {
-                rd,
-                rs1,
-                imm: imm.into(),
-            })
-            .boxed()
+    fn arbitrary(g: &mut Gen) -> Self {
+        let rd = Reg::arbitrary(g).inner;
+        let rs1 = Reg::arbitrary(g).inner;
+        let imm = Iimm::arbitrary(g).inner;
+        let rs1_val = i32::arbitrary(g);
+        Self {
+            rd,
+            rs1,
+            imm,
+            rs1_val,
+        }
     }
 }
 
 impl Op for Addi {
-    fn execute<E>(&self, state: CpuState) -> TraceTable<E>
+    fn execute<E>(&self, mut state: CpuState) -> TraceTable<E>
     where
         E: StarkField,
     {
+        state.regs[self.rs1] = self.rs1_val as u32;
         execute!(self, state)
     }
 
@@ -140,41 +143,29 @@ impl Op for Addi {
     }
 }
 
-impl From<rvsim::Op> for Addi {
-    fn from(other: rvsim::Op) -> Self {
-        match other {
-            rvsim::Op::Addi { rd, rs1, i_imm } => Self {
-                rd,
-                rs1,
-                imm: i_imm,
-            },
-            _ => panic!("wrong op type"),
+impl From<Addi> for rvsim::Op {
+    fn from(other: Addi) -> rvsim::Op {
+        rvsim::Op::Addi {
+            rd: other.rd,
+            rs1: other.rs1,
+            i_imm: other.imm,
         }
     }
 }
 
-// pub type Jal = Lui;
-
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Jal {
-    pub rd: usize,
-    pub offset: i32,
+    rd: usize,
+    offset: i32,
+    pc: u32,
 }
 
 impl Arbitrary for Jal {
-    type Parameters = ();
-    type Strategy = BoxedStrategy<Self>;
-
-    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        (0..32usize, any::<Signed<19, 2>>())
-            .prop_map(|(rd, offset)| {
-                let mut offset = offset.into();
-                if offset == 0 {
-                    offset = 4;
-                }
-                Jal { rd, offset }
-            })
-            .boxed()
+    fn arbitrary(g: &mut Gen) -> Self {
+        let rd = Reg::arbitrary(g).inner;
+        let offset = JalOffset::arbitrary(g).inner;
+        let pc = u32::arbitrary(g);
+        Self { rd, offset, pc }
     }
 }
 
@@ -183,7 +174,7 @@ impl Op for Jal {
     where
         E: StarkField,
     {
-        execute!(self, state)
+        execute!(self, state, self.pc)
     }
 
     fn to_op(&self) -> u32 {
@@ -196,37 +187,42 @@ impl Op for Jal {
     }
 }
 
-impl From<rvsim::Op> for Jal {
-    fn from(other: rvsim::Op) -> Self {
-        match other {
-            rvsim::Op::Jal { rd, j_imm } => Self { rd, offset: j_imm },
-            _ => panic!("wrong op type"),
+impl From<Jal> for rvsim::Op {
+    fn from(other: Jal) -> rvsim::Op {
+        rvsim::Op::Jal {
+            rd: other.rd,
+            j_imm: other.offset,
         }
     }
 }
 
-// pub type Jalr = Jal;
-
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Jalr {
-    pub rd: usize,
-    pub rs1: usize,
-    pub imm: i32,
+    rd: usize,
+    rs1: usize,
+    rs1_value: i32,
+    imm: i32,
+    pc: u32,
 }
 
 impl Arbitrary for Jalr {
-    type Parameters = ();
-    type Strategy = BoxedStrategy<Self>;
-
-    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        (0..32usize, 0..32usize, any::<Signed<12, 0>>())
-            .prop_map(|(rd, rs1, offset)| {
-                let imm = i32::from(offset);
-                let imm = imm - imm % 4;
-                assert_eq!(imm % 4, 0);
-                Jalr { rd, rs1, imm }
-            })
-            .boxed()
+    fn arbitrary(g: &mut Gen) -> Self {
+        let rd = Reg::arbitrary(g).inner;
+        let rs1 = Reg::arbitrary(g).inner;
+        let imm = Iimm::arbitrary(g).inner;
+        let mut rs1_value = i32::arbitrary(g);
+        let res = imm.wrapping_add(rs1_value);
+        if res & 2 != 0 {
+            rs1_value = rs1_value.wrapping_sub(2);
+        }
+        let pc = u32::arbitrary(g);
+        Self {
+            rd,
+            rs1,
+            rs1_value,
+            imm,
+            pc,
+        }
     }
 }
 
@@ -235,14 +231,8 @@ impl Op for Jalr {
     where
         E: StarkField,
     {
-        let mut rs1 = state.regs[self.rs1] as i32;
-        // FIX: the result should be 4-bytes aligned
-        // this is a dirty hack to make it work without ad-hoc strategies
-        // but does not cover all possible cases
-        rs1 = rs1 - rs1 % 4;
-        state.regs[self.rs1] = rs1 as u32;
-        assert_eq!(state.regs[self.rs1] % 4, 0);
-        execute!(self, state)
+        state.regs[self.rs1] = self.rs1_value as u32;
+        execute!(self, state, self.pc)
     }
 
     fn to_op(&self) -> u32 {
@@ -253,38 +243,36 @@ impl Op for Jalr {
     }
 }
 
-impl From<rvsim::Op> for Jalr {
-    fn from(other: rvsim::Op) -> Self {
-        match other {
-            rvsim::Op::Jalr { rd, rs1, i_imm } => Self {
-                rd,
-                rs1,
-                imm: i_imm,
-            },
-            _ => panic!("wrong op type"),
+impl From<Jalr> for rvsim::Op {
+    fn from(other: Jalr) -> rvsim::Op {
+        rvsim::Op::Jalr {
+            rd: other.rd,
+            rs1: other.rs1,
+            i_imm: other.imm,
         }
     }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Slti {
-    pub rd: usize,
-    pub rs1: usize,
-    pub imm: i32,
+    rd: usize,
+    rs1: usize,
+    rs1_value: i32,
+    imm: i32,
 }
 
 impl Arbitrary for Slti {
-    type Parameters = ();
-    type Strategy = BoxedStrategy<Self>;
-
-    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        (1..2usize, 0..1usize, any::<Signed<12, 0>>())
-            .prop_map(|(rd, rs1, imm)| Slti {
-                rd,
-                rs1,
-                imm: imm.into(),
-            })
-            .boxed()
+    fn arbitrary(g: &mut Gen) -> Self {
+        let rd = Reg::arbitrary(g).inner;
+        let rs1 = Reg::arbitrary(g).inner;
+        let imm = Iimm::arbitrary(g).inner;
+        let rs1_value = i32::arbitrary(g);
+        Self {
+            rd,
+            rs1,
+            imm,
+            rs1_value,
+        }
     }
 }
 
@@ -304,39 +292,83 @@ impl Op for Slti {
     }
 }
 
-impl From<rvsim::Op> for Slti {
-    fn from(other: rvsim::Op) -> Self {
-        match other {
-            rvsim::Op::Slti { rd, rs1, i_imm } => Self {
-                rd,
-                rs1,
-                imm: i_imm,
-            },
-            _ => panic!("wrong op type"),
+impl From<Slti> for rvsim::Op {
+    fn from(other: Slti) -> rvsim::Op {
+        rvsim::Op::Slti {
+            rd: other.rd,
+            rs1: other.rs1,
+            i_imm: other.imm,
         }
     }
 }
 
+// Signed U immediate
 #[derive(Debug, Clone)]
-struct Signed<const N: usize, const OFFSET: usize> {
+struct Uimm {
     inner: i32,
 }
 
-impl<const N: usize, const OFFSET: usize> Arbitrary for Signed<N, OFFSET> {
-    type Parameters = ();
-    type Strategy = BoxedStrategy<Self>;
-
-    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        (-1i32 << (N - 1)..(1i32 << (N - 1)))
-            .prop_map(|inner| Self {
-                inner: inner << OFFSET,
-            })
-            .boxed()
+impl quickcheck::Arbitrary for Uimm {
+    fn arbitrary(g: &mut Gen) -> Self {
+        let inner = i32::arbitrary(g) & 0xfffff000u32 as i32;
+        Self { inner }
     }
 }
 
-impl<const N: usize, const OFFSET: usize> From<Signed<N, OFFSET>> for i32 {
-    fn from(other: Signed<N, OFFSET>) -> Self {
-        other.inner as i32
+#[derive(Debug, Clone)]
+struct Iimm {
+    inner: i32,
+}
+
+impl quickcheck::Arbitrary for Iimm {
+    fn arbitrary(g: &mut Gen) -> Self {
+        const BOUNDARIES: &[i32] = &[-2048, 0, 2047];
+        let inner = if biased(g, 10) {
+            *g.choose(BOUNDARIES).unwrap()
+        } else {
+            i32::arbitrary(g) & 0xfff
+        };
+
+        Self { inner }
     }
+}
+
+#[derive(Debug, Clone)]
+struct Reg {
+    inner: usize,
+}
+
+impl quickcheck::Arbitrary for Reg {
+    fn arbitrary(g: &mut Gen) -> Self {
+        let regs = (0..32).collect::<Vec<_>>();
+        let inner = *g.choose(&regs).unwrap();
+        Self { inner }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct JalOffset {
+    inner: i32,
+}
+
+impl quickcheck::Arbitrary for JalOffset {
+    fn arbitrary(g: &mut Gen) -> Self {
+        const BOUNDARIES: &[i32] = &[-524288, 0, 524287];
+        let mut inner = if biased(g, 10) {
+            *g.choose(BOUNDARIES).unwrap()
+        } else {
+            i32::arbitrary(g) & 0xfffff
+        };
+        inner = inner - inner % 2;
+        Self { inner }
+    }
+}
+
+// biased coin
+// prob = 0..=100
+fn biased(g: &mut Gen, prob: u8) -> bool {
+    assert!(prob <= 100);
+    let prob = prob as u64 * 255 / 100;
+    assert!(prob <= 255);
+    u8::arbitrary(g) <= prob as u8
 }
