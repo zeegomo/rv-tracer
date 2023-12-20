@@ -1,0 +1,15 @@
+name: Bench
+
+on: [pull_request]
+
+jobs:
+  bench:
+    name: run benchmark
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: boa-dev/criterion-compare-action@v3
+        with:
+          cwd: "tracer"
+          branchName: ${{ github.base_ref }}
