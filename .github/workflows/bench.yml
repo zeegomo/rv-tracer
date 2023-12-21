@@ -13,3 +13,4 @@ jobs:
         with:
           cwd: "tracer"
           branchName: ${{ github.base_ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
