@@ -308,10 +308,11 @@ impl Arbitrary for Slti {
 }
 
 impl Op for Slti {
-    fn execute<E>(&self, state: CpuState) -> TraceTable<E>
+    fn execute<E>(&self, mut state: CpuState) -> TraceTable<E>
     where
         E: StarkField,
     {
+        state.regs[self.rs1] = self.rs1_value as u32;
         execute!(self, state)
     }
 

@@ -41,7 +41,7 @@ macro_rules! generate_tests {
                     let bytes = op.to_op();
                     let parsed = rvsim::Op::parse(bytes).unwrap();
                     let op = rvsim::Op::from(op);
-                    println!("{:?} != {:?}?", op, parsed);
+                    println!("{:?} != {:?}", op, parsed);
                     parsed == op
                 }
             }
@@ -54,4 +54,4 @@ generate_tests!(Auipc, Rd, Uimm, Pc);
 generate_tests!(Addi, Rd, Rs1, Imm);
 generate_tests!(Jal, Rd, Pc);
 generate_tests!(Jalr, Rd, Pc, Rs1);
-generate_tests!(Slti, Rd, Rs1, Imm);
+generate_tests!(Slti, Rd, BinRd, Rs1, Imm);

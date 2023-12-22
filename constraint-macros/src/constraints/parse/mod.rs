@@ -45,7 +45,7 @@ impl Parse for Field {
 }
 
 impl Field {
-    pub fn to_trace_bit(&self, bit: usize) -> Expr {
+    pub fn to_trace_bit(self, bit: usize) -> Expr {
         assert!(bit < REG_BITS, "bit index out of bounds");
         let bit = REG_BITS - bit - 1;
         match self {

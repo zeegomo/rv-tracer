@@ -1,7 +1,4 @@
-use std::num::NonZeroU64;
-
 use super::*;
-use proptest::prelude::*;
 use quickcheck::{Arbitrary, Gen};
 use trace_defs::*;
 use winterfell::math::StarkField;
@@ -30,6 +27,10 @@ pub struct Rs2Bits;
 #[derive(Debug, Clone)]
 pub struct Pc;
 
+// Rd where rd is supposed to be 0/1
+#[derive(Debug, Clone)]
+pub struct BinRd;
+
 pub trait Field: Debug {
     fn perturb<E: StarkField>(
         prev: &mut [E; TRACE_WIDTH],
@@ -46,6 +47,17 @@ impl Field for Rd {
     ) {
         let rd = read_reg::<RD_END, _>(prev);
         perturb_field(&mut next[rd as usize], rng);
+    }
+}
+
+impl Field for BinRd {
+    fn perturb<E: StarkField>(
+        prev: &mut [E; TRACE_WIDTH],
+        next: &mut [E; TRACE_WIDTH],
+        _rng: &mut Gen,
+    ) {
+        let rd = read_reg::<RD_END, _>(prev);
+        next[rd as usize] = E::ONE - next[rd as usize];
     }
 }
 
@@ -142,7 +154,7 @@ fn perturb_bits<const N: usize, const OFFSET: usize, E: StarkField>(
     // a 0 change would not be a perturbationd
     assert!(change != 0);
     let orig = get_signed::<N, N, _>(&trace[OFFSET..(OFFSET + N)]);
-    let bin_change = to_binary::<N>(change.into());
+    let bin_change = to_binary::<N>(change);
     for i in 0..N {
         if E::from(bin_change[i]) == E::ONE {
             trace[OFFSET + i] = E::ONE - trace[OFFSET + i];
@@ -159,10 +171,6 @@ fn perturb_field<E: StarkField>(field: &mut E, rng: &mut Gen) {
     }
     println!("change is {} -> {}", field, new);
     *field = new;
-}
-
-fn perturb_reg<const OFFSET: usize, E: StarkField>(trace: &mut [E; TRACE_WIDTH], rng: &mut Gen) {
-    perturb_bits::<REG_NUM_BITS, OFFSET, _>(trace, rng);
 }
 
 fn perturb_reg_bits<const OFFSET: usize, E: StarkField>(

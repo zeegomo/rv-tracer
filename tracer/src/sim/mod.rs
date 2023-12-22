@@ -64,7 +64,7 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
             let prev = self.interp.state.clone();
             match self.interp.step() {
                 Ok(op) => {
-                    self.executed.push(op.clone());
+                    self.executed.push(op);
                     log::trace!("executed {:?}", op);
                     let mut current_trace = self.current_trace();
 
@@ -97,10 +97,15 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
                         }
                         Op::Slti { i_imm, rs1, .. } => {
                             let rs1 = prev.x[rs1] as i32;
+                            // FIXME: this is a workaround for the fact that we don't have constraints
+                            // on h0 > 0, which would make the first constraint valid for rd = 1 when rs1 = i_imm
+                            current_trace[trace::H_0] = E::ONE;
                             if rs1 < i_imm {
-                                current_trace[trace::H_0] = E::from((i_imm - rs1) as u32);
+                                current_trace[trace::H_0] =
+                                    E::from((i_imm as i64 - rs1 as i64) as u32);
                             } else {
-                                current_trace[trace::H_1] = E::from((rs1 - i_imm) as u32);
+                                current_trace[trace::H_1] =
+                                    E::from((rs1 as i64 - i_imm as i64) as u32);
                             }
                         }
                         _ => {}
