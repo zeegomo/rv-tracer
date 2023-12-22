@@ -5,6 +5,7 @@ use perturb::Field;
 use quickcheck::{Arbitrary, Gen};
 use rv_tracer::sim::{memory::SimpleMemory, Tracer};
 use std::fmt::Debug;
+use trace_defs::TRACE_WIDTH;
 use winterfell::{
     math::{fields::f128::BaseElement, StarkField},
     FieldExtension, ProofOptions, TraceTable,
@@ -32,6 +33,10 @@ const OP_ADDR: u32 = 0x200;
 pub trait Op: Arbitrary + Debug + Clone {
     fn to_op(&self) -> u32;
     fn execute<E: StarkField>(&self, state: CpuState) -> TraceTable<E>;
+    fn rd(&self) -> u32 {
+        let op = self.to_op();
+        (op >> 7) & 0x1f
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -58,22 +63,51 @@ impl<O: Op> Arbitrary for Trace<O> {
     }
 }
 
-impl<O: Op + Send + 'static> Trace<O> {
+impl<O: Op> Trace<O> {
     // this is not actually dead
     #[allow(dead_code)]
     pub fn table<E: StarkField + 'static>(&self) -> TraceTable<E> {
-        let state = CpuState { regs: [0; 32] };
-        self.op.execute(state.clone())
+        let state: CpuState = CpuState { regs: [0; 32] };
+        self.op.execute(state)
     }
 }
 
-#[derive(Debug)]
-#[allow(dead_code)]
+#[derive(Debug, Clone)]
 pub struct PerturbedTrace<E: StarkField, O: Op, P: Field> {
     pub trace_table: TraceTable<E>,
-    op: O,
-    state: CpuState,
+    _op: O,
+    _state: CpuState,
     _phantom: std::marker::PhantomData<P>,
+}
+
+impl<E: StarkField + 'static, O: Op, P: Field + Clone + 'static> Arbitrary
+    for PerturbedTrace<E, O, P>
+{
+    fn arbitrary(g: &mut Gen) -> Self {
+        // FIXME: since we don't have constraints for rd = 0 any transition would be valid
+        // but we want to generate an invalid one. Remove this once we have constraints for rd = 0
+        let mut op = O::arbitrary(g);
+        while op.rd() == 0 {
+            op = O::arbitrary(g);
+        }
+        let state = CpuState { regs: [0; 32] };
+        let mut table = op.execute(state.clone());
+
+        let mut current = [E::ZERO; TRACE_WIDTH];
+        let mut next = [E::ZERO; TRACE_WIDTH];
+        table.read_row_into(0, &mut current);
+        table.read_row_into(1, &mut next);
+        P::perturb(&mut current, &mut next, g);
+
+        table.update_row(0, &current);
+        table.update_row(1, &next);
+        Self {
+            trace_table: table,
+            _op: op,
+            _state: state,
+            _phantom: std::marker::PhantomData,
+        }
+    }
 }
 
 pub fn to_binary<const M: usize>(val: u64) -> [u8; M] {

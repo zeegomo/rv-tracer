@@ -3,6 +3,7 @@ use common::ops::*;
 use common::perturb::*;
 use common::*;
 use rv_tracer::{prove, verify};
+use winterfell::math::fields::f128::BaseElement;
 
 macro_rules! generate_tests {
     ($op:ty, $($perturb:ty),*) => {
@@ -16,22 +17,32 @@ macro_rules! generate_tests {
                 }
 
 
-                // $(
-                //     #[test]
-                //     #[should_panic(expected = "did not evaluate to ZERO")]
-                //     #[allow(non_snake_case)]
-                //     fn [<test_ $op _ $perturb _neg>](trace: PerturbedTrace<BaseElement, $op, $perturb>) {
-                //         // winterfell panics if a constraint does not evaluate to 0 on the trace
-                //         let _ = prove::<Blake3_192>(trace.trace_table, PROOF_OPTIONS);
-                //     }
-                // )*
-
+                $(
+                    #[allow(non_snake_case)]
+                    fn [<test_ $op _ $perturb _neg>](trace: PerturbedTrace<BaseElement, $op, $perturb>) -> bool {
+                        // winterfell panics if a constraint does not evaluate to 0 on the trace
+                        match std::panic::catch_unwind(|| { let _ = prove::<Blake3_192>(trace.trace_table, PROOF_OPTIONS); }) {
+                            Err(msg) => {
+                                if let Some(msg) = msg.downcast_ref::<&'static str>() {
+                                    msg.contains("did not evaluate to ZERO") || msg.contains("constraint evaluation failed")
+                                } else if let Some(msg) = msg.downcast_ref::<String>() {
+                                    msg.contains("did not evaluate to ZERO")
+                                } else {
+                                    false
+                                }
+                            }
+                            _ => false,
+                        }
+                    }
+                )*
 
                 #[allow(non_snake_case)]
                 fn [<test_ $op _conversion>](op: $op) -> bool{
                     let bytes = op.to_op();
                     let parsed = rvsim::Op::parse(bytes).unwrap();
-                    parsed == rvsim::Op::from(op)
+                    let op = rvsim::Op::from(op);
+                    println!("{:?} != {:?}?", op, parsed);
+                    parsed == op
                 }
             }
         }

@@ -32,8 +32,8 @@ pub struct Lui {
 
 impl Arbitrary for Lui {
     fn arbitrary(g: &mut Gen) -> Self {
-        let rd = Reg::arbitrary(g).inner;
-        let uimm = Uimm::arbitrary(g).inner;
+        let rd = Reg::arbitrary(g).0;
+        let uimm = Uimm::arbitrary(g).0;
         Self { rd, uimm }
     }
 }
@@ -72,9 +72,9 @@ pub struct Auipc {
 
 impl Arbitrary for Auipc {
     fn arbitrary(g: &mut Gen) -> Self {
-        let rd = Reg::arbitrary(g).inner;
-        let uimm = Uimm::arbitrary(g).inner;
-        let pc = u32::arbitrary(g);
+        let rd = Reg::arbitrary(g).0;
+        let uimm = Uimm::arbitrary(g).0;
+        let pc = Pc::arbitrary(g).0;
         Self { rd, uimm, pc }
     }
 }
@@ -113,10 +113,14 @@ pub struct Addi {
 
 impl Arbitrary for Addi {
     fn arbitrary(g: &mut Gen) -> Self {
-        let rd = Reg::arbitrary(g).inner;
-        let rs1 = Reg::arbitrary(g).inner;
-        let imm = Iimm::arbitrary(g).inner;
-        let rs1_val = i32::arbitrary(g);
+        let rd = Reg::arbitrary(g).0;
+        let rs1 = Reg::arbitrary(g).0;
+        let imm = Iimm::arbitrary(g).0;
+        let mut rs1_val = i32::arbitrary(g);
+        // we can't modify r0;
+        if rs1 == 0 {
+            rs1_val = 0;
+        }
         Self {
             rd,
             rs1,
@@ -162,9 +166,16 @@ pub struct Jal {
 
 impl Arbitrary for Jal {
     fn arbitrary(g: &mut Gen) -> Self {
-        let rd = Reg::arbitrary(g).inner;
-        let offset = JalOffset::arbitrary(g).inner;
-        let pc = u32::arbitrary(g);
+        let rd = Reg::arbitrary(g).0;
+        let pc = Pc::arbitrary(g).0;
+        let mut offset = JalOffset::arbitrary(g).0;
+        offset -= offset % 4;
+        // a 0 offset results in an endless loop
+        while offset == 0 {
+            offset = JalOffset::arbitrary(g).0;
+            offset -= offset % 4;
+        }
+
         Self { rd, offset, pc }
     }
 }
@@ -207,15 +218,31 @@ pub struct Jalr {
 
 impl Arbitrary for Jalr {
     fn arbitrary(g: &mut Gen) -> Self {
-        let rd = Reg::arbitrary(g).inner;
-        let rs1 = Reg::arbitrary(g).inner;
-        let imm = Iimm::arbitrary(g).inner;
+        let rd = Reg::arbitrary(g).0;
+        let rs1 = Reg::arbitrary(g).0;
+
         let mut rs1_value = i32::arbitrary(g);
-        let res = imm.wrapping_add(rs1_value);
-        if res & 2 != 0 {
-            rs1_value = rs1_value.wrapping_sub(2);
+        let mut imm = Iimm::arbitrary(g).0;
+        let pc = Pc::arbitrary(g).0;
+        // we can't modify r0;
+        if rs1 == 0 {
+            rs1_value = 0;
         }
-        let pc = u32::arbitrary(g);
+        // avoid infinite loops and unaligned jumps
+        // TODO: the implementation should clear the lowest bit, so in reality
+        // we should accept jumps to addresses with address % 4 = {0, 1}, but the
+        // current implementation does not seem happy with it
+        while imm.wrapping_add(rs1_value) == pc as i32
+            || imm.wrapping_add(rs1_value) as u32 % 4 != 0
+        {
+            rs1_value = i32::arbitrary(g);
+            // we can't modify r0;
+            if rs1 == 0 {
+                rs1_value = 0;
+            }
+            imm = Iimm::arbitrary(g).0;
+        }
+
         Self {
             rd,
             rs1,
@@ -263,10 +290,14 @@ pub struct Slti {
 
 impl Arbitrary for Slti {
     fn arbitrary(g: &mut Gen) -> Self {
-        let rd = Reg::arbitrary(g).inner;
-        let rs1 = Reg::arbitrary(g).inner;
-        let imm = Iimm::arbitrary(g).inner;
-        let rs1_value = i32::arbitrary(g);
+        let rd = Reg::arbitrary(g).0;
+        let rs1 = Reg::arbitrary(g).0;
+        let imm = Iimm::arbitrary(g).0;
+        let mut rs1_value = i32::arbitrary(g);
+        // we can't modify r0;
+        if rs1 == 0 {
+            rs1_value = 0;
+        }
         Self {
             rd,
             rs1,
@@ -304,21 +335,17 @@ impl From<Slti> for rvsim::Op {
 
 // Signed U immediate
 #[derive(Debug, Clone)]
-struct Uimm {
-    inner: i32,
-}
+struct Uimm(i32);
 
 impl quickcheck::Arbitrary for Uimm {
     fn arbitrary(g: &mut Gen) -> Self {
         let inner = i32::arbitrary(g) & 0xfffff000u32 as i32;
-        Self { inner }
+        Self(inner)
     }
 }
 
 #[derive(Debug, Clone)]
-struct Iimm {
-    inner: i32,
-}
+struct Iimm(i32);
 
 impl quickcheck::Arbitrary for Iimm {
     fn arbitrary(g: &mut Gen) -> Self {
@@ -326,30 +353,25 @@ impl quickcheck::Arbitrary for Iimm {
         let inner = if biased(g, 10) {
             *g.choose(BOUNDARIES).unwrap()
         } else {
-            i32::arbitrary(g) & 0xfff
+            i32::arbitrary(g) >> 20
         };
-
-        Self { inner }
+        Self(inner)
     }
 }
 
 #[derive(Debug, Clone)]
-struct Reg {
-    inner: usize,
-}
+struct Reg(usize);
 
 impl quickcheck::Arbitrary for Reg {
     fn arbitrary(g: &mut Gen) -> Self {
         let regs = (0..32).collect::<Vec<_>>();
         let inner = *g.choose(&regs).unwrap();
-        Self { inner }
+        Self(inner)
     }
 }
 
 #[derive(Debug, Clone)]
-struct JalOffset {
-    inner: i32,
-}
+struct JalOffset(i32);
 
 impl quickcheck::Arbitrary for JalOffset {
     fn arbitrary(g: &mut Gen) -> Self {
@@ -357,10 +379,23 @@ impl quickcheck::Arbitrary for JalOffset {
         let mut inner = if biased(g, 10) {
             *g.choose(BOUNDARIES).unwrap()
         } else {
-            i32::arbitrary(g) & 0xfffff
+            i32::arbitrary(g) >> 12
         };
         inner = inner - inner % 2;
-        Self { inner }
+        Self(inner)
+    }
+}
+
+#[derive(Debug, Clone)]
+struct Pc(u32);
+
+impl quickcheck::Arbitrary for Pc {
+    fn arbitrary(g: &mut Gen) -> Self {
+        // the simulator we use crashes on pc overflow
+        let mut pc = i32::arbitrary(g);
+        // pc has to be 4-bytes aligned
+        pc = pc - pc % 4;
+        Self(pc as u32)
     }
 }
 
@@ -371,4 +406,19 @@ fn biased(g: &mut Gen, prob: u8) -> bool {
     let prob = prob as u64 * 255 / 100;
     assert!(prob <= 255);
     u8::arbitrary(g) <= prob as u8
+}
+
+quickcheck::quickcheck! {
+
+    fn jal_offset_boundaries(offset: JalOffset) -> bool {
+        offset.0 >= -524288 && offset.0 <= 524287
+    }
+
+    fn i_imm_boundaries(offset: Iimm) -> bool {
+        offset.0 >= -2048 && offset.0 <= 2047
+    }
+
+    fn u_imm_boundaries(offset: Uimm) -> bool {
+        offset.0 >= i32::MIN & (0xfffff000u32 as i32) && offset.0 <= i32::MAX & (0xfffff000u32) as i32
+    }
 }
