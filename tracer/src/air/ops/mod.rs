@@ -26,21 +26,19 @@ air! {
 
 // FIX: we ignore constraints for rd = 0 but we should not do that
 // h0, h1 overflow bits
-// h1 has to be removed because pc will be interpreted as unsigned
 air! {
     name = jal,
     opcode = "1101111",
     parse = rd,
     constraints =
         rd + h0 * E::from(1u64 << 32) - (current[PC] + E::from(4u32)) => 1,
-        (next[PC] - h1 * E::from(1u64 << 32)) - (current[PC] + jal_offset) => 1
+        (next[PC] + h1 * E::from(1u64 << 32)) - (current[PC] + jal_offset) => 1
 }
 
 // FIX: we ignore constraints for rd = 0 but we should not do that
 // h0, h1 overflow bits
 // overflow before or after adding h2?
 // TODO: h2 can be directly substituted in the second constraint
-// h1 has to be removed because pc will be interpreted as unsigned
 air! {
     name = jalr,
     opcode = "1100111",
@@ -48,20 +46,22 @@ air! {
     parse = rs1 / rd,
     constraints =
         rd  + h0 * E::from(1u64 << 32) - (current[PC] + E::from(4u32)) => 1,
-        (next[PC] - h1 * E::from(1u64 << 32)) - (rs1 + simm) => 1,
-        h2 - (current[RS1_BITS_END + 31] + current[IMM_END + 11] - E::from(2u32) * current[RS1_BITS_END + 31] * current[IMM_END + 11]) => 2
+        (next[PC] + h1 * E::from(1u64 << 32)) - (rs1 + simm - h2) => 1,
+        h2 - (next[RS1_BITS_END + 31] + current[IMM_END + 11] - E::from(2u32) * next[RS1_BITS_END + 31] * current[IMM_END + 11]) => 2
 }
 
-// // TODO: signed version
-// air!(
-//     name = slti,
-//     opcode = "0010011",
-//     funct3 = "010",
-//     parse = rs1 / rd,
-//     constraints =
-//         rd * h0 + rs1 - simm => 2,
-//         (E::ONE - rd) * h1 + rs1 - simm => 2
-// );
+// If rs1 < immediate, then rd = 1. This means there is 0 < C < 2^32 s.t. rs1 + C = immediate. H0 is C.
+// If rs1 >= immediate, then rd = 0. This means there is 0 <= C' < 2^32 s.t. immediate + C = rs1. H1 is C'.
+air!(
+    name = slti,
+    opcode = "0010011",
+    funct3 = "010",
+    parse = rs1 / rd,
+    constraints =
+        rd * (h0 + rs1 - simm) => 2,
+        (E::ONE - rd) * (h1 + simm - rs1) => 2,
+        rd * rd - rd => 2
+);
 
 // // TODO: add range checks to H0 and H1
 // // This check uses 2 additional helper registers to ensure the computation was
@@ -203,4 +203,12 @@ air! {
 //     funct7 = "0100000",
 //     parse = rs1 / rs2 / rd,
 //     constraints = rd - (rs1 * rs2) => 2
+// );
+
+// air!(
+//     name = or,
+//     opcode = "0110011",
+//     funct3 = "110",
+//     parse = rs1 / rs2 / rd,
+//     constraints = bitwise rd - (rs1 + rs2 - rs1 * rs2) => 2
 // );

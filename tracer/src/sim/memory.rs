@@ -1,22 +1,22 @@
+use std::collections::BTreeMap;
+
 /// A simple `Memory` implementation, that creates an address space with just some DRAM.
 #[derive(Debug)]
 pub struct SimpleMemory {
-    pub dram: Vec<u8>,
+    pub dram: BTreeMap<u64, u8>,
 }
 
 impl SimpleMemory {
-    pub const DRAM_BASE: u32 = 0x2000_0000;
-    pub const DRAM_SIZE: usize = 0x100;
-
     pub fn new() -> Self {
         Self {
-            dram: vec![0; Self::DRAM_SIZE],
+            dram: Default::default(),
         }
     }
 
     pub fn load_slice(&mut self, addr: u32, data: &[u8]) {
-        let internal = addr - Self::DRAM_BASE;
-        self.dram[internal as usize..internal as usize + data.len()].copy_from_slice(data);
+        for (i, byte) in data.iter().enumerate() {
+            self.dram.insert(addr as u64 + i as u64, *byte);
+        }
     }
 }
 
@@ -26,21 +26,18 @@ impl Default for SimpleMemory {
     }
 }
 
-/// Our implementation of `Memory` builds a simple memory map.
-///
-/// The `Memory` trait is also implemented for `[u8]`, so we can simply delegate to it, after
-/// translating the address.
-///
-/// The condition here only checks the start address of DRAM, because the upper bound is
-/// already checked by the `[u8]` implementation. This type of memory map can be easily
-/// extended by adding more `else if` clauses, working through blocks of memory from highest
-/// base address to lowest.
 impl rvsim::Memory for SimpleMemory {
     fn access<T: Copy>(&mut self, addr: u32, access: rvsim::MemoryAccess<T>) -> bool {
-        if addr >= Self::DRAM_BASE {
-            rvsim::Memory::access(&mut self.dram[..], addr - Self::DRAM_BASE, access)
-        } else {
-            false
+        // TODO: not a fan of this api and this hack
+        let size = std::mem::size_of::<T>();
+        let addr = addr as u64;
+        let mut slice = (addr..addr + size as u64)
+            .map(|addr| self.dram.get(&addr).copied().unwrap_or(0))
+            .collect::<Vec<_>>();
+        let res = slice.access(0, access);
+        for (i, byte) in slice.into_iter().enumerate() {
+            self.dram.insert(addr + i as u64, byte);
         }
+        res
     }
 }

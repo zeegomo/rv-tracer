@@ -2,7 +2,7 @@ pub mod ops;
 pub mod perturb;
 
 use perturb::Field;
-use proptest::prelude::*;
+use quickcheck::{Arbitrary, Gen};
 use rv_tracer::sim::{memory::SimpleMemory, Tracer};
 use std::fmt::Debug;
 use trace_defs::TRACE_WIDTH;
@@ -28,11 +28,15 @@ pub const PROOF_OPTIONS: ProofOptions = ProofOptions::new(
     FRI_REMAINDER_MAX_DEGREE,
 );
 
-const OP_ADDR: usize = SimpleMemory::DRAM_BASE as usize;
+const OP_ADDR: u32 = 0x200;
 
-pub trait Op: Arbitrary + Debug + From<rvsim::Op> + Eq + Clone {
+pub trait Op: Arbitrary + Debug + Clone {
     fn to_op(&self) -> u32;
     fn execute<E: StarkField>(&self, state: CpuState) -> TraceTable<E>;
+    fn rd(&self) -> u32 {
+        let op = self.to_op();
+        (op >> 7) & 0x1f
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -40,107 +44,69 @@ pub struct CpuState {
     pub regs: [u32; 32],
 }
 
-impl Arbitrary for CpuState {
-    type Parameters = ();
-    type Strategy = BoxedStrategy<Self>;
-
-    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        prop::collection::vec(i32::MIN..=i32::MAX, 31)
-            .prop_map(|regs| CpuState {
-                regs: std::iter::once(0)
-                    .chain(regs)
-                    .map(|x| x as u32)
-                    .collect::<Vec<_>>()
-                    .try_into()
-                    .unwrap(),
-            })
-            .boxed()
-    }
-}
-
-fn load_op_at_addr<O: Op>(addr: usize, op: &O) -> SimpleMemory {
+fn load_op_at_addr<O: Op>(addr: u32, op: &O) -> SimpleMemory {
     let mut mem = SimpleMemory::new();
     let op = op.to_op();
-    mem.load_slice(addr as u32, &op.to_le_bytes());
+    mem.load_slice(addr, &op.to_le_bytes());
     mem
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Trace<O: Op> {
     op: O,
-    state: CpuState,
 }
 
-impl<O: Op> Arbitrary for Trace<O>
-where
-    <O as proptest::arbitrary::Arbitrary>::Strategy: 'static,
-{
-    type Parameters = ();
-    type Strategy = BoxedStrategy<Self>;
-
-    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        // TODO: shrinkg only starting state
-        (any::<CpuState>(), any::<O>())
-            .prop_map(|(state, op)| Trace {
-                op: op.clone(),
-                state: state.clone(),
-            })
-            .boxed()
+impl<O: Op> Arbitrary for Trace<O> {
+    fn arbitrary(g: &mut Gen) -> Self {
+        let op = O::arbitrary(g);
+        Self { op }
     }
 }
 
-impl<O: Op + Send + 'static> Trace<O> {
+impl<O: Op> Trace<O> {
     // this is not actually dead
     #[allow(dead_code)]
     pub fn table<E: StarkField + 'static>(&self) -> TraceTable<E> {
-        // let op = self.op.clone();
-        // let state = self.state.clone();
-        // let table = std::thread::spawn(move || op.execute(state));
-        // std::thread::sleep(std::time::Duration::from_secs(1));
-        // if !table.is_finished() {
-        //     panic!("{:?}", self);
-        // } else {
-        //     table.join().unwrap()
-        // }
-        self.op.execute(self.state.clone())
+        let state: CpuState = CpuState { regs: [0; 32] };
+        self.op.execute(state)
     }
 }
 
-#[derive(Debug)]
-#[allow(dead_code)]
+#[derive(Debug, Clone)]
 pub struct PerturbedTrace<E: StarkField, O: Op, P: Field> {
     pub trace_table: TraceTable<E>,
-    op: O,
-    state: CpuState,
+    _op: O,
+    _state: CpuState,
     _phantom: std::marker::PhantomData<P>,
 }
 
-impl<E: StarkField, O: Op, P: Field> Arbitrary for PerturbedTrace<E, O, P>
-where
-    <O as proptest::arbitrary::Arbitrary>::Strategy: 'static,
+impl<E: StarkField + 'static, O: Op, P: Field + Clone + 'static> Arbitrary
+    for PerturbedTrace<E, O, P>
 {
-    type Parameters = ();
-    type Strategy = BoxedStrategy<Self>;
+    fn arbitrary(g: &mut Gen) -> Self {
+        // FIXME: since we don't have constraints for rd = 0 any transition would be valid
+        // but we want to generate an invalid one. Remove this once we have constraints for rd = 0
+        let mut op = O::arbitrary(g);
+        while op.rd() == 0 {
+            op = O::arbitrary(g);
+        }
+        let state = CpuState { regs: [0; 32] };
+        let mut table = op.execute(state.clone());
 
-    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        // TODO: shrinkg only starting state
-        (any::<CpuState>(), any::<O>())
-            .prop_map(|(state, op)| PerturbedTrace {
-                op: op.clone(),
-                state: state.clone(),
-                trace_table: op.execute(state),
-                _phantom: std::marker::PhantomData,
-            })
-            .prop_perturb(|mut trace, mut rng| {
-                let mut row = [E::ZERO; TRACE_WIDTH];
-                trace.trace_table.read_row_into(0, &mut row);
+        let mut current = [E::ZERO; TRACE_WIDTH];
+        let mut next = [E::ZERO; TRACE_WIDTH];
+        table.read_row_into(0, &mut current);
+        table.read_row_into(1, &mut next);
+        P::perturb(&mut current, &mut next, g);
 
-                P::perturb(&mut row, &mut rng);
-
-                trace.trace_table.update_row(0, &row);
-                trace
-            })
-            .boxed()
+        table.update_row(0, &current);
+        table.update_row(1, &next);
+        Self {
+            trace_table: table,
+            _op: op,
+            _state: state,
+            _phantom: std::marker::PhantomData,
+        }
     }
 }
 

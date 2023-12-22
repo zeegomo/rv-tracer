@@ -1,0 +1,17 @@
+[workspace]
+members = [
+  "constraint-macros",
+  "trace-defs",
+  "tracer",
+]
+resolver = "2"
+
+# faster tests
+[profile.test]
+opt-level = 2
+# faster tests
+[profile.test.package.proptest]
+opt-level = 3
+# faster tests
+[profile.test.package.rand_chacha]
+opt-level = 3
