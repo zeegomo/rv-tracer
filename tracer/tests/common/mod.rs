@@ -74,7 +74,7 @@ impl<O: Op> Trace<O> {
 
 #[derive(Debug, Clone)]
 pub struct PerturbedTrace<E: StarkField, O: Op, P: Field> {
-    pub trace_table: TraceTable<E>,
+    pub table: TraceTable<E>,
     _op: O,
     _state: CpuState,
     _phantom: std::marker::PhantomData<P>,
@@ -102,7 +102,7 @@ impl<E: StarkField + 'static, O: Op, P: Field + Clone + 'static> Arbitrary
         table.update_row(0, &current);
         table.update_row(1, &next);
         Self {
-            trace_table: table,
+            table,
             _op: op,
             _state: state,
             _phantom: std::marker::PhantomData,
