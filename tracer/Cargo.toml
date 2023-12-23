@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rvsim = { version = "0.2", features = ["rv32c"] }
+rvsim = { version = "0.2", default-features = false }
 elf = "0.7"
 clap = { version = "4", features = ["derive"] }
 paste = "1.0.14"
