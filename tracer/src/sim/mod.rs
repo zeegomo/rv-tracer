@@ -1,13 +1,10 @@
-use memory::SimpleMemory;
+use memory::Memory;
 use rand::Rng;
 use rvsim::elf::Elf32;
 use rvsim::*;
-use trace::RS1_BITS_END;
-use trace_defs::{self as trace, TRACE_WIDTH};
-use winterfell::{
-    math::{FieldElement, StarkField},
-    TraceTable,
-};
+use trace::{CHIPLETS_START, RS1_BITS_END};
+use trace_defs::{self as trace, TraceTable, MAIN_TRACE_WIDTH};
+use winterfell::math::{fields::f64::BaseElement, FieldElement};
 
 pub mod memory;
 
@@ -15,7 +12,7 @@ pub mod memory;
 const MIN_LEN: usize = 8;
 
 pub struct Tracer {
-    memory: SimpleMemory,
+    memory: Memory,
     state: CpuState,
     executed: Vec<Op>,
     clock: SimpleClock,
@@ -57,7 +54,7 @@ impl<'a> From<Elf32<'a>> for LoadData {
 impl Tracer {
     pub fn new(state: CpuState, data: LoadData) -> Self {
         let clock = rvsim::SimpleClock::new();
-        let memory = SimpleMemory::new();
+        let memory = Memory::new();
         Self {
             memory,
             state,
@@ -68,17 +65,19 @@ impl Tracer {
     }
 
     #[allow(clippy::needless_range_loop)]
-    pub fn current_trace<E>(&mut self) -> [E; TRACE_WIDTH]
+    pub fn current_trace<E>(&mut self) -> [E; MAIN_TRACE_WIDTH]
     where
         E: FieldElement,
     {
-        let mut trace = [0u32.into(); TRACE_WIDTH];
+        let mut trace = [0u32.into(); MAIN_TRACE_WIDTH];
         for i in 0..32 {
             trace[i] = signed(self.state.x[i]);
         }
         trace[trace::PC] = signed(self.state.pc);
+        trace[trace::UNSIGNED_PC] = self.state.pc.into();
         let pc = self.insn_at_pc();
         Self::save_u32_to_bits(&mut trace[trace::INS_END..], pc);
+        trace[trace::PC_CONTENTS] = pc.into();
         let clock = self.clock.read_cycle();
         trace[trace::BODY] = E::ONE;
         trace[trace::CYCLE] = clock.into();
@@ -89,7 +88,7 @@ impl Tracer {
     where
         E: FieldElement,
     {
-        let mut trace = vec![Vec::new(); TRACE_WIDTH];
+        let mut trace = vec![Vec::new(); MAIN_TRACE_WIDTH];
         let mut rd_idx = 0;
         let mut current_trace = self.current_trace();
         loop {
@@ -102,14 +101,14 @@ impl Tracer {
             Self::save_u32_to_bits(&mut current_trace[trace::RS2_BITS_END..], rs2);
             Self::save_u32_to_bits(&mut current_trace[trace::RD_BITS_END..], rd);
 
-            for i in 0..TRACE_WIDTH {
+            for i in 0..MAIN_TRACE_WIDTH {
                 trace[i].push(current_trace[i]);
             }
             let prev = self.state.clone();
             match self.interp().step() {
                 Ok(op) => {
                     self.executed.push(op);
-                    log::trace!("executed {:?}", op);
+                    println!("executed {:?}", op);
                     current_trace = self.current_trace();
 
                     match op {
@@ -163,37 +162,35 @@ impl Tracer {
                     break;
                 }
             }
+            self.memory.advance();
+            // next rd is now the current rd as we've executed the instruction
         }
         trace
     }
 
-    fn interp(&mut self) -> Interp<'_, '_, '_, SimpleMemory, SimpleClock> {
+    fn interp(&mut self) -> Interp<'_, '_, '_, Memory, SimpleClock> {
         Interp::new(&mut self.state, &mut self.memory, &mut self.clock)
     }
 
-    fn insn_at_pc(&mut self) -> u32 {
-        let pc = self.state.pc;
-        let mut insn = 0u32;
-        self.interp().mem.access(pc, MemoryAccess::Load(&mut insn));
-        insn
+    fn insn_at_pc(&self) -> u32 {
+        self.memory.get(self.state.pc)
     }
 
     // rs1 used by next instruction
-    fn next_rs1(&mut self) -> u32 {
+    fn next_rs1(&self) -> u32 {
         self.insn_at_pc() >> 15 & 0x1f
     }
 
     // rs2 used by next instruction
-    fn next_rs2(&mut self) -> u32 {
+    fn next_rs2(&self) -> u32 {
         self.insn_at_pc() >> 20 & 0x1f
     }
 
     // rd used by next instruction
-    fn next_rd(&mut self) -> u32 {
+    fn next_rd(&self) -> u32 {
         self.insn_at_pc() >> 7 & 0x1f
     }
 
-    #[allow(clippy::needless_range_loop)]
     fn save_u32_to_bits<E: FieldElement>(trace: &mut [E], val: u32) {
         assert!(trace.len() >= 32);
         for i in 0..32 {
@@ -203,48 +200,60 @@ impl Tracer {
 
     /// Builds an execution trace for computing a Fibonacci sequence of the specified length such
     /// that each row advances the sequence by 2 terms.
-    pub fn build_trace<E: StarkField>(mut self) -> TraceTable<E> {
-        let mut trace = Self::load_program_to_memory(&self.data, &mut self.memory);
-        let stack_trace = self.run::<E>();
+    pub fn build_trace(mut self) -> TraceTable<BaseElement> {
+        let mut trace = self.load_program_to_memory();
+
+        let stack_trace = self.run::<BaseElement>();
         for (trace, stack_trace) in trace.iter_mut().zip(stack_trace) {
             trace.extend(stack_trace);
         }
         let trace_len = trace[0].len();
-        log::debug!("program completed in {} cycles", trace_len);
+        println!("program completed in {} cycles", trace_len);
         assert!(
             trace_len > 1,
             "the trace length was {trace_len}, maybe something went wrong?",
         );
+        let memory_trace_len = self.memory.trace_len();
+        println!(
+            "trace length stack/memory: {}/{}",
+            trace_len, memory_trace_len
+        );
+        let trace_len = core::cmp::max(trace_len, memory_trace_len);
+
         let next_power_of_two = core::cmp::max(trace_len.next_power_of_two(), MIN_LEN);
         // TODO: we neeed at least 1 row of padding
-        log::debug!("padding trace to {} cycles", next_power_of_two);
+        println!("padding trace to {} cycles", next_power_of_two);
         // TODO: proper padding
         for (i, column) in trace.iter_mut().enumerate() {
             let pad = next_power_of_two - column.len();
             if i == trace::BODY {
-                *column.last_mut().unwrap() = E::ZERO;
-                column.extend(vec![E::ZERO; pad]);
+                *column.last_mut().unwrap() = BaseElement::ZERO;
+                column.extend(vec![BaseElement::ZERO; pad]);
             } else {
                 let mut bytes = vec![0u32; pad];
                 rand::thread_rng().fill(&mut bytes[..]);
-                column.extend(bytes.iter().map(|&b| E::from(b)));
+                column.extend(bytes.iter().map(|&b| BaseElement::from(b)));
             }
         }
-        TraceTable::init(trace)
+        let mem_trace = self
+            .memory
+            .to_trace(next_power_of_two, next_power_of_two - memory_trace_len);
+
+        for (trace, mem_trace) in trace.iter_mut().skip(CHIPLETS_START).zip(mem_trace.0) {
+            *trace = mem_trace;
+        }
+
+        TraceTable::new(winterfell::TraceTable::init(trace), mem_trace.1)
     }
 
-    fn load_program_to_memory<E: Clone>(data: &LoadData, memory: &mut SimpleMemory) -> Vec<Vec<E>> {
-        for (addr, segment) in &data.data {
-            memory.load_slice(*addr, segment);
-        }
-        // TODO: this should generate some trace to verify it was loaded properly, but it mosly depends on memory
-        // constraints which will be added later
-        let trace = vec![vec![]; TRACE_WIDTH];
+    fn load_program_to_memory(&mut self) -> Vec<Vec<BaseElement>> {
+        let trace = vec![vec![]; MAIN_TRACE_WIDTH];
+
         trace
     }
 }
 
-pub fn sim<E: StarkField>(elf: Elf32) -> TraceTable<E> {
+pub fn sim(elf: Elf32) -> TraceTable<BaseElement> {
     // Create the virtual CPU state, setting the PC to the start of our program.
     let state = rvsim::CpuState::new(elf.header.entry);
 

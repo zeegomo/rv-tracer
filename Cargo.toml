@@ -15,3 +15,16 @@ opt-level = 3
 # faster tests
 [profile.test.package.rand_chacha]
 opt-level = 3
+
+[patch."https://github.com/zeegomo/miden-vm"]
+miden-processor = { path = "../miden-vm/processor" }
+miden-air = { path = "../miden-vm/air" }
+miden-core = { path = "../miden-vm/core" }
+
+[patch.crates-io]
+winterfell = { path = "../winterfell/winterfell" }
+winter-utils = { path = "../winterfell/utils/core" }
+winter-math = { path = "../winterfell/math" }
+winter-crypto = { path = "../winterfell/crypto" }
+winter-prover = { path = "../winterfell/prover" }
+winter-air = { path = "../winterfell/air" }
