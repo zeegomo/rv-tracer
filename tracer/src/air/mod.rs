@@ -1,11 +1,11 @@
 mod ops;
 
 use winterfell::{
-    math::{fields::f128::BaseElement, FieldElement},
+    math::{fields::f64::BaseElement, FieldElement},
     Air, AirContext, Assertion, EvaluationFrame, ProofOptions, TraceInfo,
 };
 
-pub type BaseField = winterfell::math::fields::f128::BaseElement;
+pub type BaseField = winterfell::math::fields::f64::BaseElement;
 
 pub struct RiscvAir {
     context: AirContext<BaseElement>,

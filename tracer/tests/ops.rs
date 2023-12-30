@@ -5,7 +5,7 @@ use common::*;
 use rv_tracer::{prove, verify};
 use trace_defs::TRACE_WIDTH;
 use winterfell::{
-    math::{fields::f128::BaseElement, FieldElement},
+    math::{fields::f64::BaseElement, FieldElement},
     Air, EvaluationFrame, Trace as _,
 };
 
