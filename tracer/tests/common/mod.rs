@@ -7,7 +7,7 @@ use rv_tracer::sim::{memory::SimpleMemory, Tracer};
 use std::fmt::Debug;
 use trace_defs::TRACE_WIDTH;
 use winterfell::{
-    math::{fields::f128::BaseElement, StarkField},
+    math::{fields::f64::BaseElement, StarkField},
     FieldExtension, ProofOptions, TraceTable,
 };
 

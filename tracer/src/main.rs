@@ -4,7 +4,7 @@ use rvsim::elf::Elf32;
 use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
-use winterfell::{math::fields::f128::BaseElement, FieldExtension, ProofOptions};
+use winterfell::{math::fields::f64::BaseElement, FieldExtension, ProofOptions};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -36,7 +36,7 @@ fn main() {
             NUM_QUERIES,
             BLOWUP_FACTOR,
             GRINDING_FACTOR,
-            FieldExtension::None,
+            FieldExtension::Quadratic,
             FRI_FOLDING_FACTOR,
             FRI_REMAINDER_MAX_DEGREE,
         ),

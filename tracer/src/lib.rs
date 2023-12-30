@@ -9,7 +9,7 @@ use winterfell::ProverError;
 
 use winterfell::{
     crypto::{DefaultRandomCoin, ElementHasher},
-    math::fields::f128::BaseElement,
+    math::fields::f64::BaseElement,
     ProofOptions, Prover, StarkProof, Trace, TraceTable, VerifierError,
 };
 

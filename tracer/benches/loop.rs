@@ -1,7 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use rv_tracer::{prove, verify};
 use rvsim::elf::Elf32;
-use winterfell::{math::fields::f128::BaseElement, FieldExtension, ProofOptions};
+use winterfell::{math::fields::f64::BaseElement, FieldExtension, ProofOptions};
 // TODO add generate gtrace
 
 const LOOP_ELF: &[u8] = include_bytes!("../../loop/loop.bin");
@@ -18,7 +18,7 @@ pub const PROOF_OPTIONS: ProofOptions = ProofOptions::new(
     NUM_QUERIES,
     BLOWUP_FACTOR,
     GRINDING_FACTOR,
-    FieldExtension::None,
+    FieldExtension::Quadratic,
     FRI_FOLDING_FACTOR,
     FRI_REMAINDER_MAX_DEGREE,
 );

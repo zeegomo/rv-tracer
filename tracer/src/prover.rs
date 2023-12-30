@@ -2,7 +2,7 @@ use crate::air::RiscvAir;
 use core::marker::PhantomData;
 use winterfell::{
     crypto::{DefaultRandomCoin, ElementHasher},
-    math::{fields::f128::BaseElement, FieldElement},
+    math::{fields::f64::BaseElement, FieldElement},
     matrix::ColMatrix,
     AuxTraceRandElements, ConstraintCompositionCoefficients, DefaultConstraintEvaluator,
     DefaultTraceLde, ProofOptions, Prover, StarkDomain, TraceInfo, TracePolyTable, TraceTable,
