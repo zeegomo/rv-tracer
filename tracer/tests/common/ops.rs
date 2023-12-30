@@ -1,5 +1,6 @@
 use super::*;
 use quickcheck::{Arbitrary as _, Gen};
+use winterfell::math::fields::f64::BaseElement;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Lui {
@@ -16,11 +17,8 @@ impl Arbitrary for Lui {
 }
 
 impl Op for Lui {
-    fn execute<E>(&self, state: CpuState) -> TraceTable<E>
-    where
-        E: StarkField,
-    {
-        execute!(&vec![self], state)
+    fn execute(&self, state: CpuState) -> TraceTable<BaseElement> {
+        execute!(&[self], state)
     }
 
     fn to_op(&self) -> u32 {
@@ -57,11 +55,8 @@ impl Arbitrary for Auipc {
 }
 
 impl Op for Auipc {
-    fn execute<E>(&self, state: CpuState) -> TraceTable<E>
-    where
-        E: StarkField,
-    {
-        execute!(&vec![self], state, self.pc)
+    fn execute(&self, state: CpuState) -> TraceTable<BaseElement> {
+        execute!(&[self], state, self.pc)
     }
 
     fn to_op(&self) -> u32 {
@@ -108,12 +103,9 @@ impl Arbitrary for Addi {
 }
 
 impl Op for Addi {
-    fn execute<E>(&self, mut state: CpuState) -> TraceTable<E>
-    where
-        E: StarkField,
-    {
+    fn execute(&self, mut state: CpuState) -> TraceTable<BaseElement> {
         state.regs[self.rs1] = self.rs1_val as u32;
-        execute!(&vec![self], state)
+        execute!(&[self], state)
     }
 
     fn to_op(&self) -> u32 {
@@ -158,11 +150,8 @@ impl Arbitrary for Jal {
 }
 
 impl Op for Jal {
-    fn execute<E>(&self, state: CpuState) -> TraceTable<E>
-    where
-        E: StarkField,
-    {
-        execute!(&vec![self], state, self.pc)
+    fn execute(&self, state: CpuState) -> TraceTable<BaseElement> {
+        execute!(&[self], state, self.pc)
     }
 
     fn to_op(&self) -> u32 {
@@ -231,12 +220,9 @@ impl Arbitrary for Jalr {
 }
 
 impl Op for Jalr {
-    fn execute<E>(&self, mut state: CpuState) -> TraceTable<E>
-    where
-        E: StarkField,
-    {
+    fn execute(&self, mut state: CpuState) -> TraceTable<BaseElement> {
         state.regs[self.rs1] = self.rs1_value as u32;
-        execute!(&vec![self], state, self.pc)
+        execute!(&[self], state, self.pc)
     }
 
     fn to_op(&self) -> u32 {
@@ -285,12 +271,9 @@ impl Arbitrary for Slti {
 }
 
 impl Op for Slti {
-    fn execute<E>(&self, mut state: CpuState) -> TraceTable<E>
-    where
-        E: StarkField,
-    {
+    fn execute(&self, mut state: CpuState) -> TraceTable<BaseElement> {
         state.regs[self.rs1] = self.rs1_value as u32;
-        execute!(&vec![self], state)
+        execute!(&[self], state)
     }
 
     fn to_op(&self) -> u32 {
@@ -304,6 +287,119 @@ impl Op for Slti {
 impl From<Slti> for rvsim::Op {
     fn from(other: Slti) -> rvsim::Op {
         rvsim::Op::Slti {
+            rd: other.rd,
+            rs1: other.rs1,
+            i_imm: other.imm,
+        }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct Sb {
+    pub rs1: usize,
+    pub rs1_value: i32,
+    pub rs2: usize,
+    pub rs2_value: i32,
+    pub imm: i32,
+    pub mem_value: i32,
+}
+
+impl Arbitrary for Sb {
+    fn arbitrary(g: &mut Gen) -> Self {
+        let rs1 = Reg::arbitrary(g).0;
+        let mem_value = i32::arbitrary(g);
+        let rs2 = Reg::arbitrary(g).0;
+        let mut rs2_value = i32::arbitrary(g);
+        // we can't modify r0;
+        if rs2 == 0 {
+            rs2_value = 0;
+        }
+
+        let mut imm = Iimm::arbitrary(g).0;
+        let mut rs1_value = i32::arbitrary(g);
+
+        imm -= imm % 4;
+        rs1_value -= rs1_value % 4;
+
+        // we can't modify r0;
+        if rs1 == 0 {
+            rs1_value = 0;
+        }
+
+        if rs2 == rs1 {
+            rs2_value = rs1_value;
+        }
+
+        Self {
+            rs1,
+            imm,
+            rs2,
+            rs2_value,
+            rs1_value,
+            mem_value,
+        }
+    }
+}
+
+impl Op for Sb {
+    fn execute(&self, mut state: CpuState) -> TraceTable<BaseElement> {
+        state.regs[self.rs1] = self.rs1_value as u32;
+        state.regs[self.rs2] = self.rs2_value as u32;
+        execute!(&[self], state)
+    }
+
+    fn to_op(&self) -> u32 {
+        let imm_0_4 = ((self.imm as u32) & 0x1f) << 7;
+        let imm_5_11 = ((self.imm as u32) & 0xfe0) << 20;
+        let rs1 = (self.rs1 << 15) as u32;
+        let rs2 = (self.rs2 << 20) as u32;
+        0b0100011 | imm_0_4 | imm_5_11 | rs1 | rs2
+    }
+}
+
+impl From<Sb> for rvsim::Op {
+    fn from(other: Sb) -> rvsim::Op {
+        rvsim::Op::Sb {
+            rs1: other.rs1,
+            rs2: other.rs2,
+            s_imm: other.imm,
+        }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct Lb {
+    rd: usize,
+    rs1: usize,
+    rs1_value: i32,
+    imm: i32,
+    mem_value: i32,
+}
+
+impl Arbitrary for Lb {
+    fn arbitrary(g: &mut Gen) -> Self {
+        let rd = Reg::arbitrary(g).0;
+        let rs1 = Reg::arbitrary(g).0;
+        let imm = Iimm::arbitrary(g).0;
+        let mut rs1_value = i32::arbitrary(g);
+        let mem_value = i32::arbitrary(g);
+        // we can't modify r0;
+        if rs1 == 0 {
+            rs1_value = 0;
+        }
+        Self {
+            rd,
+            rs1,
+            imm,
+            rs1_value,
+            mem_value,
+        }
+    }
+}
+
+impl From<Lb> for rvsim::Op {
+    fn from(other: Lb) -> rvsim::Op {
+        rvsim::Op::Lb {
             rd: other.rd,
             rs1: other.rs1,
             i_imm: other.imm,

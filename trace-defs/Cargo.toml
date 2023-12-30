@@ -6,3 +6,5 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+winterfell = "0.6"
+miden-processor = { git = "https://github.com/zeegomo/miden-vm", branch = "public-chiplets" }

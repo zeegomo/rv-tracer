@@ -7,10 +7,11 @@ use rvsim::elf::Elf32;
 use std::time::Instant;
 use winterfell::ProverError;
 
+use trace_defs::TraceTable;
 use winterfell::{
     crypto::{DefaultRandomCoin, ElementHasher},
     math::fields::f64::BaseElement,
-    ProofOptions, Prover, StarkProof, Trace, TraceTable, VerifierError,
+    ProofOptions, Prover, StarkProof, Trace, VerifierError,
 };
 
 pub fn prove<H: ElementHasher<BaseField = BaseElement>>(
@@ -37,7 +38,7 @@ pub fn prove_from_elf<H: ElementHasher<BaseField = BaseElement>>(
     let now = Instant::now();
     let trace = sim::sim(elf);
 
-    let trace_width = trace.width();
+    let trace_width = trace.layout().main_trace_width();
     let trace_length = trace.length();
     log::debug!(
         "Generated execution trace of {} registers and 2^{} steps in {} ms",
@@ -53,10 +54,10 @@ pub fn verify<H: ElementHasher<BaseField = BaseElement>>(
     proof: StarkProof,
 ) -> Result<(), VerifierError> {
     let now = Instant::now();
-    let acceptable_options =
-        winterfell::AcceptableOptions::OptionSet(vec![proof.options().clone()]);
+    // let acceptable_options =
+    //     winterfell::AcceptableOptions::OptionSet(vec![proof.options().clone()]);
 
-    winterfell::verify::<air::RiscvAir, H, DefaultRandomCoin<H>>(proof, (), &acceptable_options)?;
+    winterfell::verify::<air::RiscvAir, H, DefaultRandomCoin<H>>(proof, ())?;
     log::debug!("Verified proof in {} ms", now.elapsed().as_millis());
     Ok(())
 }
