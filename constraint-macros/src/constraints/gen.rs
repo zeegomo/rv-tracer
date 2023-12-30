@@ -53,6 +53,7 @@ pub fn generate(config: Air) -> TokenStream {
 
     quote! {
             pub mod #name {
+                
                 use trace_defs::*;
                 use core::ops::*;
                 use winterfell::{EvaluationFrame, TransitionConstraintDegree, math::{FieldElement, StarkField}};
@@ -99,6 +100,7 @@ pub fn generate(config: Air) -> TokenStream {
                     let rs1 = get_rs1(&current);
                     let rs2 = get_rs2(&current);
                     let rd_zero = binary_flag(&[E::ZERO, E::ZERO, E::ZERO, E::ZERO, E::ZERO], &current[RD_END..RD_END + #REG_NUM_PO2], E::ONE);
+                      
                     for shamt in 0..SHAMT_CNT {
                         let shamt_flag = shamt_flag(shamt as u8, &current[SHAMT_END..SHAMT_END + 5]);
                         let cumulative_flag = op_flag * body_flag * funct3_flag * shamt_flag * (E::ONE - rd_zero);

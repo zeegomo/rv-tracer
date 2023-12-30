@@ -17,7 +17,7 @@ macro_rules! generate_tests {
                 fn [<test_ $op _ok>](trace: Trace<$op>) -> bool {
                     let table = trace.table();
                     let trace_info = table.get_info();
-                    let air = rv_tracer::air::RiscvAir::new(trace_info, (), PROOF_OPTIONS);
+                    let air = rv_tracer::air::RiscvAir::new(trace_info, (), PROOF_OPTIONS.clone());
                     let mut results = vec![BaseElement::ZERO; air.context().num_transition_constraints()];
                     let mut frame = EvaluationFrame::new(MAIN_TRACE_WIDTH);
                     table.read_main_frame(0, &mut frame);
@@ -28,10 +28,10 @@ macro_rules! generate_tests {
 
                 $(
                     #[allow(non_snake_case)]
-                    fn [<test_ $op _ $perturb _neg>](trace: PerturbedTrace<BaseElement, $op, $perturb>) -> bool {
+                    fn [<test_ $op _ $perturb _neg>](trace: PerturbedTrace<$op, $perturb>) -> bool {
                         let table = trace.table;
                         let trace_info = table.get_info();
-                        let air = rv_tracer::air::RiscvAir::new(trace_info, (), PROOF_OPTIONS);
+                        let air = rv_tracer::air::RiscvAir::new(trace_info, (), PROOF_OPTIONS.clone());
                         let mut results = vec![BaseElement::ZERO; air.context().num_transition_constraints()];
                         let mut frame = EvaluationFrame::new(MAIN_TRACE_WIDTH);
                         table.read_main_frame(0, &mut frame);
@@ -46,7 +46,11 @@ macro_rules! generate_tests {
                     let bytes = op.to_op();
                     let parsed = rvsim::Op::parse(bytes).unwrap();
                     let op = rvsim::Op::from(op);
-                    println!("{:?} != {:?}", op, parsed);
+                    let mut bits = [0; 32];
+                    for i in 0..32 {
+                        bits[i] = ((bytes >> (31 - i)) & 1);
+                    }
+                    println!("{:?} != {:?} | {:?}", op, parsed, bits);
                     parsed == op
                 }
             }
@@ -60,8 +64,9 @@ macro_rules! generate_batched {
             quickcheck::quickcheck! {
                 #[allow(non_snake_case)]
                 fn [<test_ $op _prove_and_verify>](trace: Trace<[$op; 16]>) -> bool {
-                    let proof = prove::<Blake3_192>(trace.table(),PROOF_OPTIONS);
+                    let proof = prove::<Blake3_192>(trace.table(),PROOF_OPTIONS.clone());
                     verify::<Blake3_192>(proof.unwrap()).is_ok()
+
                 }
             }
         }
