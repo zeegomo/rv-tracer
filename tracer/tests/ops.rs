@@ -2,7 +2,6 @@ mod common;
 use common::ops::*;
 use common::perturb::*;
 use common::*;
-use rv_tracer::{prove, verify};
 use trace_defs::TRACE_WIDTH;
 use winterfell::{
     math::{fields::f64::BaseElement, FieldElement},
@@ -55,9 +54,9 @@ macro_rules! generate_tests {
     };
 }
 
-generate_tests!(Lui, Rd, Uimm);
-generate_tests!(Auipc, Rd, Uimm, Pc);
-generate_tests!(Addi, Rd, Rs1, Imm);
-generate_tests!(Jal, Rd, Pc);
-generate_tests!(Jalr, Rd, Pc, Rs1);
-generate_tests!(Slti, Rd, BinRd, Rs1, Imm);
+generate_tests!(Lui, RdBits, Uimm);
+generate_tests!(Auipc, RdBits, Uimm, Pc);
+generate_tests!(Addi, RdBits, Rs1Bits, Imm);
+generate_tests!(Jal, RdBits, Pc);
+generate_tests!(Jalr, RdBits, Pc, Rs1Bits);
+generate_tests!(Slti, RdBits, Rs1Bits, Imm);
