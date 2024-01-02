@@ -115,21 +115,21 @@ impl Field for RdBits {
 
 impl Field for Rs1Bits {
     fn perturb<E: StarkField>(
-        _prev: &mut [E; TRACE_WIDTH],
-        next: &mut [E; TRACE_WIDTH],
+        prev: &mut [E; TRACE_WIDTH],
+        _next: &mut [E; TRACE_WIDTH],
         rng: &mut Gen,
     ) {
-        perturb_reg_bits::<RS1_BITS_END, _>(next, rng);
+        perturb_reg_bits::<RS1_BITS_END, _>(prev, rng);
     }
 }
 
 impl Field for Rs2Bits {
     fn perturb<E: StarkField>(
-        _prev: &mut [E; TRACE_WIDTH],
-        next: &mut [E; TRACE_WIDTH],
+        prev: &mut [E; TRACE_WIDTH],
+        _next: &mut [E; TRACE_WIDTH],
         rng: &mut Gen,
     ) {
-        perturb_reg_bits::<RS2_BITS_END, _>(next, rng);
+        perturb_reg_bits::<RS2_BITS_END, _>(prev, rng);
     }
 }
 

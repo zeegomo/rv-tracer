@@ -38,9 +38,6 @@ pub fn generate(config: Air) -> TokenStream {
         }
     };
 
-    let (rs1_flag_contents, rs1_deg) = make_flag::<'_, REG_NUM_PO2>(&parse, Field::Rs1);
-    let (rs2_flag_contents, rs2_deg) = make_flag::<'_, REG_NUM_PO2>(&parse, Field::Rs2);
-    let (rd_flag_contents, rd_deg) = make_flag::<'_, REG_NUM_PO2>(&parse, Field::Rd);
     let (shamt_flag_contents, shamt_deg) = make_flag::<'_, SHAMT_BITS>(&parse, Field::Shamt);
 
     let c_exprs = constraints
@@ -61,15 +58,11 @@ pub fn generate(config: Air) -> TokenStream {
                 use winterfell::{EvaluationFrame, TransitionConstraintDegree, math::{FieldElement, StarkField}};
 
                 const OPCODE_FLAG_DEG: usize = 7;
+                const REG_BITS: usize = #REG_BITS;
                 const FUNCT3_FLAG_DEG: usize = #funct3_deg as usize;
-                const RS1_FLAG_DEG: usize = #rs1_deg as usize;
-                const RS2_FLAG_DEG: usize = #rs2_deg as usize;
-                const RD_FLAG_DEG: usize = #rd_deg as usize;
-                const RD_CNT: usize = (1 << #rd_deg as usize) - 1;
-                const RS1_CNT: usize = 1 << #rs1_deg as usize;
-                const RS2_CNT: usize = 1 << #rs2_deg as usize;
                 const SHAMT_CNT: usize = 1 << #shamt_deg as usize;
-                const TOT_CNT: usize = RD_CNT * RS1_CNT * RS2_CNT;
+                const SHAMT_DEG: usize = #shamt_deg as usize;
+                const TOT_CNT: usize = SHAMT_CNT;
                 const BODY_FLAG_DEG: usize = 1;
                 const CONSTRAINT_DEGS: [usize; #n_constraints] = [#(#c_degs as usize),*];
 
@@ -102,25 +95,17 @@ pub fn generate(config: Air) -> TokenStream {
                     let h5 = next[H_5];
                     let jal_offset = get_jal_offset(&current);
 
-                    for rrd in 1..=RD_CNT {
-                        let rd_flag = rd_flag(rrd as u8, &current[RD_END..RD_END + 5]);
-                        let rd = next[REGISTER_START + rrd];
-                        for rrs1 in 0..RS1_CNT {
-                            let rs1 = current[REGISTER_START + rrs1];
-                            let rs1_flag = rs1_flag(rrs1 as u8, &current[RS1_END..RS1_END + 5]);
-                            for rrs2 in 0..RS2_CNT {
-                                let rs2 = current[REGISTER_START + rrs2];
-                                let rs2_flag = rs2_flag(rrs2 as u8, &current[RS2_END..RS2_END + 5]);
-                                for shamt in 0..SHAMT_CNT {
-                                    let shamt_flag = shamt_flag(shamt as u8, &current[SHAMT_END..SHAMT_END + 5]);
-                                    let cumulative_flag = op_flag * rd_flag * rs1_flag * rs2_flag * body_flag * funct3_flag * shamt_flag;
-                                    #(
-                                        result[index] = (#c_exprs) * cumulative_flag;
-                                        index += 1;
-                                    )*
-                                }
-                            }
-                        }
+                    let rd = get_rd(&next);
+                    let rs1 = get_rs1(&current);
+                    let rs2 = get_rs2(&current);
+                    let rd_zero = binary_flag(&[E::ZERO, E::ZERO, E::ZERO, E::ZERO, E::ZERO], &current[RD_END..RD_END + #REG_NUM_PO2], E::ONE);
+                    for shamt in 0..SHAMT_CNT {
+                        let shamt_flag = shamt_flag(shamt as u8, &current[SHAMT_END..SHAMT_END + 5]);
+                        let cumulative_flag = op_flag * body_flag * funct3_flag * shamt_flag * (E::ONE - rd_zero);
+                        #(
+                            result[index] = (#c_exprs) * cumulative_flag;
+                            index += 1;
+                        )*
                     }
 
                     // return the number of used constraint columns
@@ -131,7 +116,7 @@ pub fn generate(config: Air) -> TokenStream {
                     let mut degrees = Vec::with_capacity(TOT_CNT);
                     for _ in 0..TOT_CNT {
                         for deg in CONSTRAINT_DEGS.iter() {
-                            degrees.push(TransitionConstraintDegree::new( OPCODE_FLAG_DEG + RD_FLAG_DEG + RS1_FLAG_DEG + RS2_FLAG_DEG + FUNCT3_FLAG_DEG + BODY_FLAG_DEG + deg));
+                            degrees.push(TransitionConstraintDegree::new( OPCODE_FLAG_DEG + FUNCT3_FLAG_DEG + BODY_FLAG_DEG + SHAMT_DEG + 5 + deg));
                         }
                     }
                     degrees
@@ -149,19 +134,16 @@ pub fn generate(config: Air) -> TokenStream {
                     jal_offset(&trace[JAL_OFFSET_END..JAL_OFFSET_END + 20])
                 }
 
-                fn rd_flag<E: FieldElement>(val: u8, test: &[E]) -> E {
-                    assert_eq!(test.len(), 5, "requested rd flag with invalid length {}", test.len());
-                    #rd_flag_contents
+                fn get_rd<E: FieldElement>(trace: &[E]) -> E {
+                    get_signed::<REG_BITS, REG_BITS, _>(&trace[RD_BITS_END..RD_BITS_END + REG_BITS])
                 }
 
-                fn rs1_flag<E: FieldElement>(val: u8, test: &[E]) -> E {
-                    assert_eq!(test.len(), 5, "requested rs1 flag with invalid length {}", test.len());
-                    #rs1_flag_contents
+                fn get_rs1<E: FieldElement>(trace: &[E]) -> E {
+                    get_signed::<REG_BITS, REG_BITS, _>(&trace[RS1_BITS_END..RS1_BITS_END + REG_BITS])
                 }
 
-                fn rs2_flag<E: FieldElement>(val: u8, test: &[E]) -> E {
-                    assert_eq!(test.len(), 5, "requested rs2 flag with invalid length {}", test.len());
-                    #rs2_flag_contents
+                fn get_rs2<E: FieldElement>(trace: &[E]) -> E {
+                    get_signed::<REG_BITS, REG_BITS, _>(&trace[RS2_BITS_END..RS2_BITS_END + REG_BITS])
                 }
 
                 fn funct3_flag<E>(test: &[E]) -> E

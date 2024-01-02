@@ -47,7 +47,7 @@ air! {
     constraints =
         rd  + h0 * E::from(1u64 << 32) - (current[PC] + E::from(4u32)) => 1,
         (next[PC] + h1 * E::from(1u64 << 32)) - (rs1 + simm - h2) => 1,
-        h2 - (next[RS1_BITS_END + 31] + current[IMM_END + 11] - E::from(2u32) * next[RS1_BITS_END + 31] * current[IMM_END + 11]) => 2
+        h2 - (current[RS1_BITS_END + 31] + current[IMM_END + 11] - E::from(2u32) * current[RS1_BITS_END + 31] * current[IMM_END + 11]) => 2
 }
 
 // If rs1 < immediate, then rd = 1. This means there is 0 < C < 2^32 s.t. rs1 + C = immediate. H0 is C.

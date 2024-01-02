@@ -36,15 +36,10 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
             trace[i] = signed(self.interp.state.x[i]);
         }
         trace[trace::PC] = signed(self.interp.state.pc);
-        let mut pc = 0u32;
-        self.interp
-            .mem
-            .access(self.interp.state.pc, MemoryAccess::Load(&mut pc));
-        for i in 0..32 {
-            trace[trace::INS_END + i] = ((pc >> (31 - i)) & 1).into();
-        }
+        let pc = self.insn_at_pc();
+        Self::save_u32_to_bits(&mut trace[trace::INS_END..], pc);
 
-        let clock = self.interp.clock.read_cycle() as u32;
+        let clock = self.interp.clock.read_cycle();
         trace[trace::BODY] = E::ONE;
         trace[trace::CYCLE] = clock.into();
         assert!(clock < 100);
@@ -56,17 +51,27 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
         E: FieldElement,
     {
         let mut trace = vec![Vec::new(); TRACE_WIDTH];
-        let current_trace = self.current_trace();
-        for i in 0..TRACE_WIDTH {
-            trace[i].push(current_trace[i]);
-        }
+        let mut rd_idx = 0;
+        let mut current_trace = self.current_trace();
         loop {
+            // Save current state to trace
+            let rs1 = self.interp.state.x[self.next_rs1() as usize];
+            let rs2 = self.interp.state.x[self.next_rs2() as usize];
+            let rd = self.interp.state.x[rd_idx];
+            rd_idx = self.next_rd() as usize;
+            Self::save_u32_to_bits(&mut current_trace[trace::RS1_BITS_END..], rs1);
+            Self::save_u32_to_bits(&mut current_trace[trace::RS2_BITS_END..], rs2);
+            Self::save_u32_to_bits(&mut current_trace[trace::RD_BITS_END..], rd);
+
+            for i in 0..TRACE_WIDTH {
+                trace[i].push(current_trace[i]);
+            }
             let prev = self.interp.state.clone();
             match self.interp.step() {
                 Ok(op) => {
                     self.executed.push(op);
                     log::trace!("executed {:?}", op);
-                    let mut current_trace = self.current_trace();
+                    current_trace = self.current_trace();
 
                     match op {
                         Op::Auipc { u_imm, .. } => {
@@ -110,9 +115,6 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
                         }
                         _ => {}
                     }
-                    for i in 0..TRACE_WIDTH {
-                        trace[i].push(current_trace[i]);
-                    }
                 }
                 Err((rvsim::CpuError::IllegalInstruction, _)) => {
                     break;
@@ -151,6 +153,37 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
         *trace[trace::BODY].last_mut().unwrap() = E::ZERO;
         trace[trace::BODY].extend(vec![E::ZERO; pad_len]);
         TraceTable::init(trace)
+    }
+
+    fn insn_at_pc(&mut self) -> u32 {
+        let mut pc = 0u32;
+        self.interp
+            .mem
+            .access(self.interp.state.pc, MemoryAccess::Load(&mut pc));
+        pc
+    }
+
+    // rs1 used by next instruction
+    fn next_rs1(&mut self) -> u32 {
+        self.insn_at_pc() >> 15 & 0x1f
+    }
+
+    // rs2 used by next instruction
+    fn next_rs2(&mut self) -> u32 {
+        self.insn_at_pc() >> 20 & 0x1f
+    }
+
+    // rd used by next instruction
+    fn next_rd(&mut self) -> u32 {
+        self.insn_at_pc() >> 7 & 0x1f
+    }
+
+    #[allow(clippy::needless_range_loop)]
+    fn save_u32_to_bits<E: FieldElement>(trace: &mut [E], val: u32) {
+        assert!(trace.len() >= 32);
+        for i in 0..32 {
+            trace[i] = ((val >> (31 - i)) & 1).into();
+        }
     }
 }
 
