@@ -1,29 +1,6 @@
 use super::*;
 use quickcheck::{Arbitrary as _, Gen};
 
-macro_rules! execute {
-    ($op:expr, $state:expr) => {{
-        let mut mem = load_op_at_addr(OP_ADDR, $op);
-        let mut cpu_state = rvsim::CpuState::new(OP_ADDR as u32);
-        let mut clock = rvsim::SimpleClock::new();
-        cpu_state.x = $state.regs;
-        let interp = rvsim::Interp::new(&mut cpu_state, &mut mem, &mut clock);
-        let tracer = Tracer::new(interp);
-        let trace = tracer.build_trace();
-        trace
-    }};
-    ($op:expr, $state:expr, $pc:expr) => {{
-        let mut mem = load_op_at_addr($pc, $op);
-        let mut cpu_state = rvsim::CpuState::new($pc);
-        let mut clock = rvsim::SimpleClock::new();
-        cpu_state.x = $state.regs;
-        let interp = rvsim::Interp::new(&mut cpu_state, &mut mem, &mut clock);
-        let tracer = Tracer::new(interp);
-        let trace = tracer.build_trace();
-        trace
-    }};
-}
-
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Lui {
     pub rd: usize,
@@ -43,7 +20,7 @@ impl Op for Lui {
     where
         E: StarkField,
     {
-        execute!(self, state)
+        execute!(&vec![self], state)
     }
 
     fn to_op(&self) -> u32 {
@@ -84,7 +61,7 @@ impl Op for Auipc {
     where
         E: StarkField,
     {
-        execute!(self, state, self.pc)
+        execute!(&vec![self], state, self.pc)
     }
 
     fn to_op(&self) -> u32 {
@@ -136,7 +113,7 @@ impl Op for Addi {
         E: StarkField,
     {
         state.regs[self.rs1] = self.rs1_val as u32;
-        execute!(self, state)
+        execute!(&vec![self], state)
     }
 
     fn to_op(&self) -> u32 {
@@ -185,7 +162,7 @@ impl Op for Jal {
     where
         E: StarkField,
     {
-        execute!(self, state, self.pc)
+        execute!(&vec![self], state, self.pc)
     }
 
     fn to_op(&self) -> u32 {
@@ -259,7 +236,7 @@ impl Op for Jalr {
         E: StarkField,
     {
         state.regs[self.rs1] = self.rs1_value as u32;
-        execute!(self, state, self.pc)
+        execute!(&vec![self], state, self.pc)
     }
 
     fn to_op(&self) -> u32 {
@@ -313,7 +290,7 @@ impl Op for Slti {
         E: StarkField,
     {
         state.regs[self.rs1] = self.rs1_value as u32;
-        execute!(self, state)
+        execute!(&vec![self], state)
     }
 
     fn to_op(&self) -> u32 {
