@@ -2,6 +2,7 @@ mod common;
 use common::ops::*;
 use common::perturb::*;
 use common::*;
+use rv_tracer::{prove, verify};
 use trace_defs::TRACE_WIDTH;
 use winterfell::{
     math::{fields::f64::BaseElement, FieldElement},
@@ -48,6 +49,18 @@ macro_rules! generate_tests {
                     let op = rvsim::Op::from(op);
                     println!("{:?} != {:?}", op, parsed);
                     parsed == op
+                }
+
+                #[allow(non_snake_case)]
+                fn [<test_ $op _prove_and_verify>](trace: Trace<[$op; 16]>) -> bool {
+                    // FIX: can't easily stack instructions that modify pc
+                    $(
+                        if std::any::TypeId::of::<$perturb>() == std::any::TypeId::of::<Pc>() {
+                            return true;
+                        }
+                    )*
+                    let proof = prove::<Blake3_192>(trace.table(),PROOF_OPTIONS);
+                    verify::<Blake3_192>(proof.unwrap()).is_ok()
                 }
             }
         }

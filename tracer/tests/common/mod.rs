@@ -30,7 +30,32 @@ pub const PROOF_OPTIONS: ProofOptions = ProofOptions::new(
 
 const OP_ADDR: u32 = 0x200;
 
-pub trait Op: Arbitrary + Debug + Clone {
+macro_rules! execute {
+    ($ops:expr, $state:expr) => {{
+        let mut mem = load_ops_at_addr(OP_ADDR, $ops);
+        let mut cpu_state = rvsim::CpuState::new(OP_ADDR as u32);
+        let mut clock = rvsim::SimpleClock::new();
+        cpu_state.x = $state.regs;
+        let interp = rvsim::Interp::new(&mut cpu_state, &mut mem, &mut clock);
+        let tracer = Tracer::new(interp);
+        let trace = tracer.build_trace();
+        trace
+    }};
+    ($ops:expr, $state:expr, $pc:expr) => {{
+        let mut mem = load_ops_at_addr($pc, $ops);
+        let mut cpu_state = rvsim::CpuState::new($pc);
+        let mut clock = rvsim::SimpleClock::new();
+        cpu_state.x = $state.regs;
+        let interp = rvsim::Interp::new(&mut cpu_state, &mut mem, &mut clock);
+        let tracer = Tracer::new(interp);
+        let trace = tracer.build_trace();
+        trace
+    }};
+}
+
+pub(crate) use execute;
+
+pub trait Op: Debug + Clone {
     fn to_op(&self) -> u32;
     fn execute<E: StarkField>(&self, state: CpuState) -> TraceTable<E>;
     fn rd(&self) -> u32 {
@@ -39,26 +64,50 @@ pub trait Op: Arbitrary + Debug + Clone {
     }
 }
 
+impl<T: Op> Op for &T {
+    fn to_op(&self) -> u32 {
+        (*self).to_op()
+    }
+
+    fn execute<E: StarkField>(&self, state: CpuState) -> TraceTable<E> {
+        (*self).execute(state)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct CpuState {
     pub regs: [u32; 32],
 }
 
-fn load_op_at_addr<O: Op>(addr: u32, op: &O) -> SimpleMemory {
+fn load_ops_at_addr<O: Op>(addr: u32, op: &[O]) -> SimpleMemory {
     let mut mem = SimpleMemory::new();
-    let op = op.to_op();
-    mem.load_slice(addr, &op.to_le_bytes());
+    let ops = op
+        .iter()
+        .flat_map(|o| o.to_op().to_le_bytes().into_iter())
+        .collect::<Vec<_>>();
+    mem.load_slice(addr, &ops);
     mem
 }
 
 #[derive(Debug, Clone)]
-pub struct Trace<O: Op> {
+pub struct Trace<O> {
     op: O,
 }
 
-impl<O: Op> Arbitrary for Trace<O> {
+impl<O: Op + Arbitrary + 'static> Arbitrary for Trace<O> {
     fn arbitrary(g: &mut Gen) -> Self {
         let op = O::arbitrary(g);
+        Self { op }
+    }
+}
+
+impl<const N: usize, O: Op + Arbitrary + 'static> Arbitrary for Trace<[O; N]> {
+    fn arbitrary(g: &mut Gen) -> Self {
+        let op = (0..N)
+            .map(|_| O::arbitrary(g))
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
         Self { op }
     }
 }
@@ -72,6 +121,14 @@ impl<O: Op> Trace<O> {
     }
 }
 
+impl<const N: usize, O: Op> Trace<[O; N]> {
+    #[allow(dead_code)]
+    pub fn table<E: StarkField + 'static>(&self) -> TraceTable<E> {
+        let state: CpuState = CpuState { regs: [0; 32] };
+        execute!(&self.op, state)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct PerturbedTrace<E: StarkField, O: Op, P: Field> {
     pub table: TraceTable<E>,
@@ -80,7 +137,7 @@ pub struct PerturbedTrace<E: StarkField, O: Op, P: Field> {
     _phantom: std::marker::PhantomData<P>,
 }
 
-impl<E: StarkField + 'static, O: Op, P: Field + Clone + 'static> Arbitrary
+impl<E: StarkField + 'static, O: Op + 'static + Arbitrary, P: Field + Clone + 'static> Arbitrary
     for PerturbedTrace<E, O, P>
 {
     fn arbitrary(g: &mut Gen) -> Self {
