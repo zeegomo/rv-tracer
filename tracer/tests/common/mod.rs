@@ -3,7 +3,7 @@ pub mod perturb;
 
 use perturb::Field;
 use quickcheck::{Arbitrary, Gen};
-use rv_tracer::sim::{memory::SimpleMemory, Tracer};
+use rv_tracer::sim::{LoadData, Tracer};
 use std::fmt::Debug;
 use trace_defs::TRACE_WIDTH;
 use winterfell::{
@@ -32,22 +32,28 @@ const OP_ADDR: u32 = 0x200;
 
 macro_rules! execute {
     ($ops:expr, $state:expr) => {{
-        let mut mem = load_ops_at_addr(OP_ADDR, $ops);
+        let load_data = LoadData::new(vec![(
+            OP_ADDR,
+            $ops.iter()
+                .flat_map(|o| o.to_op().to_le_bytes().into_iter())
+                .collect::<Vec<_>>(),
+        )]);
         let mut cpu_state = rvsim::CpuState::new(OP_ADDR as u32);
-        let mut clock = rvsim::SimpleClock::new();
         cpu_state.x = $state.regs;
-        let interp = rvsim::Interp::new(&mut cpu_state, &mut mem, &mut clock);
-        let tracer = Tracer::new(interp);
+        let tracer = Tracer::new(cpu_state, load_data);
         let trace = tracer.build_trace();
         trace
     }};
     ($ops:expr, $state:expr, $pc:expr) => {{
-        let mut mem = load_ops_at_addr($pc, $ops);
+        let load_data = LoadData::new(vec![(
+            $pc,
+            $ops.iter()
+                .flat_map(|o| o.to_op().to_le_bytes().into_iter())
+                .collect::<Vec<_>>(),
+        )]);
         let mut cpu_state = rvsim::CpuState::new($pc);
-        let mut clock = rvsim::SimpleClock::new();
         cpu_state.x = $state.regs;
-        let interp = rvsim::Interp::new(&mut cpu_state, &mut mem, &mut clock);
-        let tracer = Tracer::new(interp);
+        let tracer = Tracer::new(cpu_state, load_data);
         let trace = tracer.build_trace();
         trace
     }};
@@ -79,19 +85,9 @@ pub struct CpuState {
     pub regs: [u32; 32],
 }
 
-fn load_ops_at_addr<O: Op>(addr: u32, op: &[O]) -> SimpleMemory {
-    let mut mem = SimpleMemory::new();
-    let ops = op
-        .iter()
-        .flat_map(|o| o.to_op().to_le_bytes().into_iter())
-        .collect::<Vec<_>>();
-    mem.load_slice(addr, &ops);
-    mem
-}
-
 #[derive(Debug, Clone)]
 pub struct Trace<O> {
-    op: O,
+    pub op: O,
 }
 
 impl<O: Op + Arbitrary + 'static> Arbitrary for Trace<O> {

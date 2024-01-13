@@ -20,7 +20,7 @@ impl Op for Lui {
     where
         E: StarkField,
     {
-        execute!(&vec![self], state)
+        execute!(&[self], state)
     }
 
     fn to_op(&self) -> u32 {
@@ -61,7 +61,7 @@ impl Op for Auipc {
     where
         E: StarkField,
     {
-        execute!(&vec![self], state, self.pc)
+        execute!(&[self], state, self.pc)
     }
 
     fn to_op(&self) -> u32 {
@@ -113,7 +113,7 @@ impl Op for Addi {
         E: StarkField,
     {
         state.regs[self.rs1] = self.rs1_val as u32;
-        execute!(&vec![self], state)
+        execute!(&[self], state)
     }
 
     fn to_op(&self) -> u32 {
@@ -162,7 +162,7 @@ impl Op for Jal {
     where
         E: StarkField,
     {
-        execute!(&vec![self], state, self.pc)
+        execute!(&[self], state, self.pc)
     }
 
     fn to_op(&self) -> u32 {
@@ -236,7 +236,7 @@ impl Op for Jalr {
         E: StarkField,
     {
         state.regs[self.rs1] = self.rs1_value as u32;
-        execute!(&vec![self], state, self.pc)
+        execute!(&[self], state, self.pc)
     }
 
     fn to_op(&self) -> u32 {
@@ -290,7 +290,7 @@ impl Op for Slti {
         E: StarkField,
     {
         state.regs[self.rs1] = self.rs1_value as u32;
-        execute!(&vec![self], state)
+        execute!(&[self], state)
     }
 
     fn to_op(&self) -> u32 {
