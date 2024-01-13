@@ -49,15 +49,17 @@ macro_rules! generate_tests {
                     println!("{:?} != {:?}", op, parsed);
                     parsed == op
                 }
+            }
+        }
+    };
+}
 
+macro_rules! generate_batched {
+    ($op:ty) => {
+        paste::paste! {
+            quickcheck::quickcheck! {
                 #[allow(non_snake_case)]
                 fn [<test_ $op _prove_and_verify>](trace: Trace<[$op; 16]>) -> bool {
-                    // FIX: can't easily stack instructions that modify pc
-                    $(
-                        if std::any::TypeId::of::<$perturb>() == std::any::TypeId::of::<Pc>() {
-                            return true;
-                        }
-                    )*
                     let proof = prove::<Blake3_192>(trace.table(),PROOF_OPTIONS);
                     verify::<Blake3_192>(proof.unwrap()).is_ok()
                 }
@@ -67,8 +69,11 @@ macro_rules! generate_tests {
 }
 
 generate_tests!(Lui, RdBits, Uimm);
+generate_batched!(Lui);
 generate_tests!(Auipc, RdBits, Uimm, Pc);
 generate_tests!(Addi, RdBits, Rs1Bits, Imm);
+generate_batched!(Addi);
 generate_tests!(Jal, RdBits, Pc);
 generate_tests!(Jalr, RdBits, Pc, Rs1Bits);
 generate_tests!(Slti, RdBits, Rs1Bits, Imm);
+generate_batched!(Slti);
