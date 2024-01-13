@@ -180,22 +180,6 @@ fn perturb_reg_bits<const OFFSET: usize, E: StarkField>(
     perturb_bits::<REG_BITS, OFFSET, _>(trace, rng);
 }
 
-#[cfg(test)]
-mod test {
-    #[test]
-    fn test_to_binary() {
-        const N: usize = 10;
-        for i in 0..(1 << N) {
-            let binary = super::to_binary::<N>(i);
-            let mut val = 0;
-            for (i, bit) in binary.iter().enumerate() {
-                val |= (*bit as u64) << (N - i - 1);
-            }
-            assert_eq!(val, i, "{i} to binary: {:?}", binary);
-        }
-    }
-}
-
 fn read_reg<const OFFSET: usize, E: StarkField>(trace: &[E; TRACE_WIDTH]) -> u32 {
     let mut val = 0;
     for i in 0..REG_NUM_BITS {
@@ -215,8 +199,25 @@ fn get_signed<const N: usize, const LEN: usize, E: StarkField>(op: &[E]) -> E {
         op.len()
     );
     result -= op[0] * E::from(1u32 << (N - 1));
+    #[allow(clippy::needless_range_loop)]
     for i in 1..LEN {
         result += op[i] * E::from(1u32 << (N - i - 1));
     }
     result
+}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn test_to_binary() {
+        const N: usize = 10;
+        for i in 0..(1 << N) {
+            let binary = super::to_binary::<N>(i);
+            let mut val = 0;
+            for (i, bit) in binary.iter().enumerate() {
+                val |= (*bit as u64) << (N - i - 1);
+            }
+            assert_eq!(val, i, "{i} to binary: {:?}", binary);
+        }
+    }
 }

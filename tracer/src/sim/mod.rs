@@ -1,3 +1,4 @@
+use memory::SimpleMemory;
 use rand::Rng;
 use rvsim::elf::Elf32;
 use rvsim::*;
@@ -13,16 +14,56 @@ pub mod memory;
 // for some reason the trace length must be at least 8
 const MIN_LEN: usize = 8;
 
-pub struct Tracer<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> {
-    interp: Interp<'s, 'm, 'c, M, C>,
+pub struct Tracer {
+    memory: SimpleMemory,
+    state: CpuState,
     executed: Vec<Op>,
+    clock: SimpleClock,
+    data: LoadData,
 }
 
-impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
-    pub fn new(interp: Interp<'s, 'm, 'c, M, C>) -> Self {
+pub struct LoadData {
+    // a pair of (addr, segment)
+    data: Vec<(u32, Vec<u8>)>,
+}
+
+impl LoadData {
+    pub fn new(data: Vec<(u32, Vec<u8>)>) -> Self {
+        Self { data }
+    }
+}
+
+impl<'a> From<Elf32<'a>> for LoadData {
+    fn from(elf: Elf32<'a>) -> Self {
+        if elf.ident.data != elf::ELF_IDENT_DATA_2LSB
+            || elf.ident.abi != elf::ELF_IDENT_ABI_SYSV
+            || elf.header.typ != elf::ELF_TYPE_EXECUTABLE
+            || elf.header.machine != elf::ELF_MACHINE_RISCV
+        {
+            panic!("unsupported executable format");
+        }
+
+        let mut data = LoadData { data: Vec::new() };
+        for (i, ph) in elf.ph.iter().enumerate() {
+            let addr = ph.vaddr;
+            if ph.typ == rvsim::elf::ELF_PROGRAM_TYPE_LOADABLE {
+                data.data.push((addr, elf.p[i].to_vec()));
+            }
+        }
+        data
+    }
+}
+
+impl Tracer {
+    pub fn new(state: CpuState, data: LoadData) -> Self {
+        let clock = rvsim::SimpleClock::new();
+        let memory = SimpleMemory::new();
         Self {
-            interp,
+            memory,
+            state,
             executed: Vec::new(),
+            clock,
+            data,
         }
     }
 
@@ -33,19 +74,17 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
     {
         let mut trace = [0u32.into(); TRACE_WIDTH];
         for i in 0..32 {
-            trace[i] = signed(self.interp.state.x[i]);
+            trace[i] = signed(self.state.x[i]);
         }
-        trace[trace::PC] = signed(self.interp.state.pc);
+        trace[trace::PC] = signed(self.state.pc);
         let pc = self.insn_at_pc();
         Self::save_u32_to_bits(&mut trace[trace::INS_END..], pc);
-
-        let clock = self.interp.clock.read_cycle();
+        let clock = self.clock.read_cycle();
         trace[trace::BODY] = E::ONE;
         trace[trace::CYCLE] = clock.into();
         assert!(clock < 100);
         trace
     }
-
     pub fn run<E>(&mut self) -> Vec<Vec<E>>
     where
         E: FieldElement,
@@ -55,9 +94,9 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
         let mut current_trace = self.current_trace();
         loop {
             // Save current state to trace
-            let rs1 = self.interp.state.x[self.next_rs1() as usize];
-            let rs2 = self.interp.state.x[self.next_rs2() as usize];
-            let rd = self.interp.state.x[rd_idx];
+            let rs1 = self.state.x[self.next_rs1() as usize];
+            let rs2 = self.state.x[self.next_rs2() as usize];
+            let rd = self.state.x[rd_idx];
             rd_idx = self.next_rd() as usize;
             Self::save_u32_to_bits(&mut current_trace[trace::RS1_BITS_END..], rs1);
             Self::save_u32_to_bits(&mut current_trace[trace::RS2_BITS_END..], rs2);
@@ -66,8 +105,8 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
             for i in 0..TRACE_WIDTH {
                 trace[i].push(current_trace[i]);
             }
-            let prev = self.interp.state.clone();
-            match self.interp.step() {
+            let prev = self.state.clone();
+            match self.interp().step() {
                 Ok(op) => {
                     self.executed.push(op);
                     log::trace!("executed {:?}", op);
@@ -128,39 +167,15 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
         trace
     }
 
-    /// Builds an execution trace for computing a Fibonacci sequence of the specified length such
-    /// that each row advances the sequence by 2 terms.
-    pub fn build_trace<E: StarkField>(mut self) -> TraceTable<E> {
-        let mut trace = self.run::<E>();
-        let trace_len = trace[0].len();
-        log::debug!("program completed in {} cycles", trace_len);
-        assert!(
-            trace_len > 1,
-            "the trace length was {trace_len}, maybe something went wrong?",
-        );
-        let next_power_of_two = core::cmp::max(trace_len.next_power_of_two(), MIN_LEN);
-        let pad_len = next_power_of_two - trace_len;
-        log::debug!("padding trace to {} cycles", next_power_of_two);
-        // TODO: proper padding
-        for (i, column) in trace.iter_mut().enumerate() {
-            if i == trace::BODY {
-                continue;
-            }
-            let mut bytes = vec![0u32; pad_len];
-            rand::thread_rng().fill(&mut bytes[..]);
-            column.extend(bytes.iter().map(|&b| E::from(b)));
-        }
-        *trace[trace::BODY].last_mut().unwrap() = E::ZERO;
-        trace[trace::BODY].extend(vec![E::ZERO; pad_len]);
-        TraceTable::init(trace)
+    fn interp(&mut self) -> Interp<'_, '_, '_, SimpleMemory, SimpleClock> {
+        Interp::new(&mut self.state, &mut self.memory, &mut self.clock)
     }
 
     fn insn_at_pc(&mut self) -> u32 {
-        let mut pc = 0u32;
-        self.interp
-            .mem
-            .access(self.interp.state.pc, MemoryAccess::Load(&mut pc));
-        pc
+        let pc = self.state.pc;
+        let mut insn = 0u32;
+        self.interp().mem.access(pc, MemoryAccess::Load(&mut insn));
+        insn
     }
 
     // rs1 used by next instruction
@@ -185,35 +200,55 @@ impl<'s, 'm, 'c, M: 'm + Memory, C: 'c + Clock> Tracer<'s, 'm, 'c, M, C> {
             trace[i] = ((val >> (31 - i)) & 1).into();
         }
     }
-}
 
-pub fn load_elf_to_memory(elf: &Elf32, memory: &mut memory::SimpleMemory) {
-    if elf.ident.data != elf::ELF_IDENT_DATA_2LSB
-        || elf.ident.abi != elf::ELF_IDENT_ABI_SYSV
-        || elf.header.typ != elf::ELF_TYPE_EXECUTABLE
-        || elf.header.machine != elf::ELF_MACHINE_RISCV
-    {
-        panic!("unsupported executable format");
+    /// Builds an execution trace for computing a Fibonacci sequence of the specified length such
+    /// that each row advances the sequence by 2 terms.
+    pub fn build_trace<E: StarkField>(mut self) -> TraceTable<E> {
+        let mut trace = Self::load_program_to_memory(&self.data, &mut self.memory);
+        let stack_trace = self.run::<E>();
+        for (trace, stack_trace) in trace.iter_mut().zip(stack_trace) {
+            trace.extend(stack_trace);
+        }
+        let trace_len = trace[0].len();
+        log::debug!("program completed in {} cycles", trace_len);
+        assert!(
+            trace_len > 1,
+            "the trace length was {trace_len}, maybe something went wrong?",
+        );
+        let next_power_of_two = core::cmp::max(trace_len.next_power_of_two(), MIN_LEN);
+        // TODO: we neeed at least 1 row of padding
+        log::debug!("padding trace to {} cycles", next_power_of_two);
+        // TODO: proper padding
+        for (i, column) in trace.iter_mut().enumerate() {
+            let pad = next_power_of_two - column.len();
+            if i == trace::BODY {
+                *column.last_mut().unwrap() = E::ZERO;
+                column.extend(vec![E::ZERO; pad]);
+            } else {
+                let mut bytes = vec![0u32; pad];
+                rand::thread_rng().fill(&mut bytes[..]);
+                column.extend(bytes.iter().map(|&b| E::from(b)));
+            }
+        }
+        TraceTable::init(trace)
     }
 
-    for (i, ph) in elf.ph.iter().enumerate() {
-        let addr = ph.vaddr;
-        if ph.typ == rvsim::elf::ELF_PROGRAM_TYPE_LOADABLE {
-            memory.load_slice(addr, elf.p[i]);
+    fn load_program_to_memory<E: Clone>(data: &LoadData, memory: &mut SimpleMemory) -> Vec<Vec<E>> {
+        for (addr, segment) in &data.data {
+            memory.load_slice(*addr, segment);
         }
+        // TODO: this should generate some trace to verify it was loaded properly, but it mosly depends on memory
+        // constraints which will be added later
+        let trace = vec![vec![]; TRACE_WIDTH];
+        trace
     }
 }
 
 pub fn sim<E: StarkField>(elf: Elf32) -> TraceTable<E> {
-    let mut memory = memory::SimpleMemory::new();
-    let mut clock = SimpleClock::new();
-    load_elf_to_memory(&elf, &mut memory);
-
     // Create the virtual CPU state, setting the PC to the start of our program.
-    let mut state = rvsim::CpuState::new(elf.header.entry);
+    let state = rvsim::CpuState::new(elf.header.entry);
 
-    let interp = Interp::new(&mut state, &mut memory, &mut clock);
-    let tracer = Tracer::new(interp);
+    let tracer = Tracer::new(state, elf.into());
     tracer.build_trace()
 }
 

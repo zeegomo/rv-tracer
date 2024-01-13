@@ -22,7 +22,6 @@ macro_rules! generate_tests {
                     let mut frame = EvaluationFrame::new(TRACE_WIDTH);
                     table.read_main_frame(0, &mut frame);
                     air.evaluate_transition(&frame, &[], &mut results);
-
                     results == vec![BaseElement::ZERO; air.context().num_transition_constraints()]
                 }
 
