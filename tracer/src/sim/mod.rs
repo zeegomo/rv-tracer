@@ -4,8 +4,8 @@ use rand::Rng;
 use rvsim::elf::Elf32;
 use rvsim::*;
 use trace_defs::{
-    BODY, CHIPLETS_START, CYCLE, H_0, H_1, H_2, INS_END, MAIN_TRACE_WIDTH, PC, PC_CONTENTS,
-    RD_BITS_END, RS1_BITS_END, RS2_BITS_END, UNSIGNED_PC,
+    BODY, CHIPLETS_START, CYCLE, H_0, H_1, H_2, INS_END, LOADING, MAIN_TRACE_WIDTH, PC,
+    PC_CONTENTS, RD_BITS_END, RS1_BITS_END, RS2_BITS_END, UNSIGNED_PC,
 };
 use winterfell::math::{fields::f64::BaseElement, FieldElement};
 
@@ -227,7 +227,7 @@ impl Tracer {
         // TODO: proper padding
         for (i, column) in trace.iter_mut().enumerate() {
             let pad = next_power_of_two - column.len();
-            if i == BODY {
+            if i == BODY || i == LOADING {
                 *column.last_mut().unwrap() = BaseElement::ZERO;
                 column.extend(vec![BaseElement::ZERO; pad]);
             } else {
@@ -248,8 +248,34 @@ impl Tracer {
     }
 
     fn load_program_to_memory(&mut self) -> Vec<Vec<BaseElement>> {
-        let trace = vec![vec![]; MAIN_TRACE_WIDTH];
+        let mut trace = vec![vec![]; MAIN_TRACE_WIDTH];
 
+        let bytes = self.data.data.iter().flat_map(|(addr, segment)| {
+            assert!(segment.len() % 4 == 0);
+            segment.chunks_exact(4).enumerate().map(|(i, bytes)| {
+                (
+                    *addr + i as u32 * 4,
+                    u32::from_le_bytes(bytes.try_into().unwrap()),
+                )
+            })
+        });
+
+        // TODO: we can make this more efficient as bytes are likely contiguous
+        for (mut addr, byte) in bytes {
+            self.memory.store(addr, byte);
+            addr -= 300;
+            let mut row = vec![BaseElement::ZERO; MAIN_TRACE_WIDTH];
+            row[PC] = addr.into();
+            row[PC_CONTENTS] = byte.into();
+            row[CYCLE] = self.memory.clock().into();
+            row[LOADING] = BaseElement::ONE;
+            for (col, val) in trace.iter_mut().zip(row) {
+                col.push(val)
+            }
+            self.memory.advance();
+        }
+
+        self.clock.instret = self.memory.clock() as u64;
         trace
     }
 }
