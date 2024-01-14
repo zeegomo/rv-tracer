@@ -257,12 +257,6 @@ impl Tracer {
 
             // assert_eq!(trace[169][i], trace[PC_CONTENTS][i]);
         }
-        println!("169: {:?}", trace[169]);
-        println!("168: {:?}", trace[168]);
-        for (i, col) in trace.iter().skip(CHIPLETS_START).enumerate().take(17) {
-            println!("mem col {i} {}: {:?}", i + CHIPLETS_START, col);
-        }
-
         TraceTable::new(winterfell::TraceTable::init(trace), mem_trace.1)
     }
 

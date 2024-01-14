@@ -98,7 +98,11 @@ impl Air for RiscvAir {
     fn get_assertions(&self) -> Vec<Assertion<Self::BaseField>> {
         // all registers should be 0 at the start of the computation
         // let last_step = self.trace_length() - 1;
-        vec![Assertion::single(trace_defs::BODY, 0, Self::BaseField::ONE)]
+        vec![Assertion::single(
+            trace_defs::LOADING,
+            0,
+            Self::BaseField::ONE,
+        )]
     }
 
     fn evaluate_aux_transition<F, E>(
@@ -118,7 +122,7 @@ impl Air for RiscvAir {
 
     fn get_aux_assertions<E: FieldElement<BaseField = Self::BaseField>>(
         &self,
-        aux_rand_elements: &AuxTraceRandElements<E>,
+        _aux_rand_elements: &AuxTraceRandElements<E>,
     ) -> Vec<Assertion<E>> {
         let mut result: Vec<Assertion<E>> = Vec::new();
 

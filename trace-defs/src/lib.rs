@@ -99,8 +99,7 @@ impl Trace for TraceTable<BaseElement> {
     {
         // we can't use inner.validate as it is as it will try to validate aux constraints for columns which are missing
         // in 'inner'
-        // self.inner
-        //     .validate(air, &[], &<AuxTraceRandElements<E>>::new())
+        // self.inner.validate(air, &[], aux_rand_elements)
         // TODO: validate
     }
 }
