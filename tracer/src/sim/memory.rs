@@ -57,30 +57,6 @@ impl Memory {
         self.regs[reg] = val;
     }
 
-    // write a slice to memory
-    pub fn load_slice(&mut self, addr: u32, data: &[u8]) {
-        let chunks = data.chunks_exact(4);
-        let rem = chunks.remainder();
-        let mut data = chunks
-            .map(|chunk| u32::from_le_bytes(chunk.try_into().unwrap()))
-            .collect::<Vec<_>>();
-        if rem.len() > 0 {
-            let mut last = [0u8; 4];
-            last[..rem.len()].copy_from_slice(rem);
-            data.push(u32::from_le_bytes(last));
-        }
-        for (i, data) in data.into_iter().enumerate() {
-            let addr = addr + (i as u32) * 4;
-            // self.accesses.push(Access::Store {
-            //     addr: addr,
-            //     data,
-            //     clk: self.clk,
-            // });
-            self.buf.insert(addr, data);
-            // self.advance();
-        }
-    }
-
     pub fn clock(&self) -> u32 {
         self.clk
     }
@@ -95,9 +71,13 @@ impl Memory {
         self.buf.get(&addr).copied().unwrap_or(0)
     }
 
-    // store without enforcing constraints
     pub fn store(&mut self, addr: u32, data: u32) {
         self.buf.insert(addr, data);
+        self.accesses.push(Access::Store {
+            addr: addr - 300,
+            data,
+            clk: self.clk,
+        });
     }
 
     fn build_chiplet_trace(&self) -> Chiplets {
@@ -121,11 +101,12 @@ impl Memory {
                 }
                 Access::Store { addr, data, clk } => {
                     assert!(chiplet_clk <= clk);
-                    // while chiplet_clk < clk {
-                    //     chiplets.advance_clock();
-                    //     chiplet_clk += 1;
-                    // }
-                    // chiplets.write_mem_element(SYS_CTX, addr, data.into());
+                    while chiplet_clk < clk {
+                        chiplets.advance_clock();
+                        chiplet_clk += 1;
+                    }
+                    // chiplets.read_mem(SYS_CTX, addr);
+                    chiplets.write_mem_element(SYS_CTX, addr, data.into());
                 }
             }
             i += 1;

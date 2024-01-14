@@ -226,7 +226,7 @@ impl Tracer {
         // TODO: proper padding
         for (i, column) in trace.iter_mut().enumerate() {
             let pad = next_power_of_two - column.len();
-            if i == trace::BODY {
+            if i == trace::BODY || i == trace::LOADING {
                 *column.last_mut().unwrap() = BaseElement::ZERO;
                 column.extend(vec![BaseElement::ZERO; pad]);
             } else {
@@ -247,8 +247,34 @@ impl Tracer {
     }
 
     fn load_program_to_memory(&mut self) -> Vec<Vec<BaseElement>> {
-        let trace = vec![vec![]; MAIN_TRACE_WIDTH];
+        let mut trace = vec![vec![]; MAIN_TRACE_WIDTH];
 
+        let bytes = self.data.data.iter().flat_map(|(addr, segment)| {
+            assert!(segment.len() % 4 == 0);
+            segment.chunks_exact(4).enumerate().map(|(i, bytes)| {
+                (
+                    *addr + i as u32 * 4,
+                    u32::from_le_bytes(bytes.try_into().unwrap()),
+                )
+            })
+        });
+
+        // TODO: we can make this more efficient as bytes are likely contiguous
+        for (mut addr, byte) in bytes {
+            self.memory.store(addr, byte);
+            addr -= 300;
+            let mut row = vec![BaseElement::ZERO; MAIN_TRACE_WIDTH];
+            row[trace::PC] = addr.into();
+            row[trace::PC_CONTENTS] = byte.into();
+            row[trace::CYCLE] = self.memory.clock().into();
+            row[trace::LOADING] = BaseElement::ONE;
+            for (col, val) in trace.iter_mut().zip(row) {
+                col.push(val)
+            }
+            self.memory.advance();
+        }
+
+        self.clock.instret = self.memory.clock() as u64;
         trace
     }
 }
