@@ -74,7 +74,7 @@ impl Memory {
     pub fn store(&mut self, addr: u32, data: u32) {
         self.buf.insert(addr, data);
         self.accesses.push(Access::Store {
-            addr: addr - 300,
+            addr,
             data,
             clk: self.clk,
         });
@@ -86,7 +86,6 @@ impl Memory {
         // TODO: extract only the parts that we need
         let mut chiplets = Chiplets::new(Default::default());
         let mut chiplet_clk = 0;
-        let mut i = 0;
         println!("{:?}", self.accesses);
         for access in self.accesses.iter().copied() {
             match access {
@@ -96,8 +95,8 @@ impl Memory {
                         chiplets.advance_clock();
                         chiplet_clk += 1;
                     }
-                    chiplets.read_mem(SYS_CTX, addr);
-                    // assert_eq!(chiplets.read_mem(SYS_CTX, addr)[0].as_int() as u32, data);
+                    // chiplets.read_mem(SYS_CTX, addr);
+                    assert_eq!(chiplets.read_mem(SYS_CTX, addr)[0].as_int() as u32, data);
                 }
                 Access::Store { addr, data, clk } => {
                     assert!(chiplet_clk <= clk);
@@ -109,7 +108,6 @@ impl Memory {
                     chiplets.write_mem_element(SYS_CTX, addr, data.into());
                 }
             }
-            i += 1;
         }
         chiplets
     }
@@ -120,9 +118,16 @@ impl Memory {
         num_rand_rows: usize,
     ) -> ([Vec<Felt>; CHIPLETS_WIDTH], AuxTraceBuilder) {
         println!("building real trace");
-        let trace = self
+        let mut trace = self
             .build_chiplet_trace()
             .into_trace(trace_len, num_rand_rows);
+
+        for col in trace.trace.iter_mut() {
+            // use rand::Rng;
+            // let mut bytes = [0u8; 8];
+            // rand::thread_rng().fill(&mut bytes[..]);
+            // *col.last_mut().unwrap() = Felt::from(bytes);
+        }
         (trace.trace, trace.aux_builder)
     }
 

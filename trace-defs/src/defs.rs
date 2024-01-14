@@ -7,6 +7,8 @@ pub const UNSIGNED_PC: usize = 198;
 pub const PC_CONTENTS: usize = 199;
 // 1 when we are loading the ELF in memory and 0 otherwise
 pub const LOADING: usize = 200;
+// TODO: can we remove this?
+pub const READING_PC: usize = 201;
 // 33-64: instruction at pc
 pub const INS_END: usize = 33;
 pub const UIMM_END: usize = INS_END;

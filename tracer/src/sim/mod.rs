@@ -2,7 +2,7 @@ use memory::Memory;
 use rand::Rng;
 use rvsim::elf::Elf32;
 use rvsim::*;
-use trace::{CHIPLETS_START, RS1_BITS_END};
+use trace::{CHIPLETS_START, LOADING, PC_CONTENTS, READING_PC, RS1_BITS_END};
 use trace_defs::{self as trace, TraceTable, MAIN_TRACE_WIDTH};
 use winterfell::math::{fields::f64::BaseElement, FieldElement};
 
@@ -75,6 +75,7 @@ impl Tracer {
         }
         trace[trace::PC] = signed(self.state.pc);
         trace[trace::UNSIGNED_PC] = self.state.pc.into();
+        trace[trace::READING_PC] = E::ONE;
         let pc = self.insn_at_pc();
         Self::save_u32_to_bits(&mut trace[trace::INS_END..], pc);
         trace[trace::PC_CONTENTS] = pc.into();
@@ -92,6 +93,9 @@ impl Tracer {
         let mut rd_idx = 0;
         let mut current_trace = self.current_trace();
         loop {
+            if self.clock.read_cycle() == 32 {
+                break;
+            }
             // Save current state to trace
             let rs1 = self.state.x[self.next_rs1() as usize];
             let rs2 = self.state.x[self.next_rs2() as usize];
@@ -202,7 +206,7 @@ impl Tracer {
     /// that each row advances the sequence by 2 terms.
     pub fn build_trace(mut self) -> TraceTable<BaseElement> {
         let mut trace = self.load_program_to_memory();
-
+        println!("loading completed in {} cycles", self.clock.read_cycle());
         let stack_trace = self.run::<BaseElement>();
         for (trace, stack_trace) in trace.iter_mut().zip(stack_trace) {
             trace.extend(stack_trace);
@@ -226,8 +230,10 @@ impl Tracer {
         // TODO: proper padding
         for (i, column) in trace.iter_mut().enumerate() {
             let pad = next_power_of_two - column.len();
-            if i == trace::BODY || i == trace::LOADING {
-                *column.last_mut().unwrap() = BaseElement::ZERO;
+            if i == trace::BODY || i == trace::LOADING || i == trace::READING_PC {
+                if i != trace::READING_PC {
+                    *column.last_mut().unwrap() = BaseElement::ZERO;
+                }
                 column.extend(vec![BaseElement::ZERO; pad]);
             } else {
                 let mut bytes = vec![0u32; pad];
@@ -241,6 +247,20 @@ impl Tracer {
 
         for (trace, mem_trace) in trace.iter_mut().skip(CHIPLETS_START).zip(mem_trace.0) {
             *trace = mem_trace;
+        }
+
+        for i in 0..trace_len {
+            println!(
+                "vals-{i}:  {} {} {}",
+                trace[169][i], trace[PC_CONTENTS][i], trace[READING_PC][i],
+            );
+
+            // assert_eq!(trace[169][i], trace[PC_CONTENTS][i]);
+        }
+        println!("169: {:?}", trace[169]);
+        println!("168: {:?}", trace[168]);
+        for (i, col) in trace.iter().skip(CHIPLETS_START).enumerate().take(17) {
+            println!("mem col {i} {}: {:?}", i + CHIPLETS_START, col);
         }
 
         TraceTable::new(winterfell::TraceTable::init(trace), mem_trace.1)
@@ -260,13 +280,14 @@ impl Tracer {
         });
 
         // TODO: we can make this more efficient as bytes are likely contiguous
-        for (mut addr, byte) in bytes {
+        for (addr, byte) in bytes {
             self.memory.store(addr, byte);
-            addr -= 300;
+            // addr -= 300;
             let mut row = vec![BaseElement::ZERO; MAIN_TRACE_WIDTH];
             row[trace::PC] = addr.into();
             row[trace::PC_CONTENTS] = byte.into();
             row[trace::CYCLE] = self.memory.clock().into();
+            row[trace::READING_PC] = BaseElement::ONE;
             row[trace::LOADING] = BaseElement::ONE;
             for (col, val) in trace.iter_mut().zip(row) {
                 col.push(val)
