@@ -151,12 +151,12 @@ impl<O: Op + Arbitrary + 'static, P: Field + Clone + 'static> Arbitrary for Pert
 
         let mut current = [BaseElement::ZERO; MAIN_TRACE_WIDTH];
         let mut next = [BaseElement::ZERO; MAIN_TRACE_WIDTH];
-        table.read_row_into(0, &mut current);
-        table.read_row_into(1, &mut next);
+        table.read_row_into(1, &mut current);
+        table.read_row_into(2, &mut next);
         P::perturb(&mut current, &mut next, g);
 
-        table.update_row(0, &current);
-        table.update_row(1, &next);
+        table.update_row(1, &current);
+        table.update_row(2, &next);
         Self {
             table,
             op,
