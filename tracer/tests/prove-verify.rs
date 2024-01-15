@@ -12,5 +12,4 @@ fn prove_and_verify_loop() {
 
     let proof = prove_from_elf::<Blake3_192>(elf, PROOF_OPTIONS.clone()).unwrap();
     verify::<Blake3_192>(proof).unwrap();
-    panic!();
 }
