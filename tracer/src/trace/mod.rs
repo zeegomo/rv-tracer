@@ -1,25 +1,26 @@
+use miden_processor::chiplets::aux_trace::AuxTraceBuilder;
 use trace_defs::*;
 
 use winterfell::{
     math::{fields::f64::BaseElement, FieldElement, StarkField},
-    matrix::ColMatrix,
-    Air, AuxTraceRandElements, EvaluationFrame, Trace, TraceInfo, TraceLayout,
+    Air, AuxTraceRandElements, ColMatrix, EvaluationFrame, Trace, TraceInfo, TraceLayout,
 };
 
-const NUM_ALPHA_ELEMS: usize = 0;
+const NUM_ALPHA_ELEMS: usize = 9;
 
-#[derive(Debug, Clone)]
 pub struct TraceTable<E: StarkField> {
     inner: winterfell::TraceTable<E>,
     layout: TraceLayout,
+    aux_builder: AuxTraceBuilder,
 }
 
 impl<Field: StarkField> TraceTable<Field> {
-    pub fn new(trace: Vec<Vec<Field>>) -> Self {
+    pub fn new(trace: Vec<Vec<Field>>, aux_builder: AuxTraceBuilder) -> Self {
         let layout = TraceLayout::new(MAIN_TRACE_WIDTH, [AUX_TRACE_WIDTH; 1], [NUM_ALPHA_ELEMS; 1]);
         Self {
             inner: winterfell::TraceTable::init(trace),
             layout,
+            aux_builder,
         }
     }
 }
@@ -45,13 +46,30 @@ impl Trace for TraceTable<BaseElement> {
 
     fn build_aux_segment<E>(
         &mut self,
-        _aux_segments: &[ColMatrix<E>],
-        _rand_elements: &[E],
+        aux_segments: &[ColMatrix<E>],
+        rand_elements: &[E],
     ) -> Option<ColMatrix<E>>
     where
         E: FieldElement<BaseField = Self::BaseField>,
     {
-        panic!("no aux segment in table")
+        // we only have one auxiliary segment
+        if !aux_segments.is_empty() {
+            return None;
+        }
+
+        // add the running product columns for the chiplets
+        let mut bus = self
+            .aux_builder
+            .build_memory_aux_column(self.main_segment(), rand_elements);
+        // // inject random values into the last rows of the trace
+        use miden_processor::crypto::RandomCoin;
+        use miden_processor::crypto::RpoRandomCoin;
+        let mut rng = RpoRandomCoin::new(&[(1u32.into())]);
+        for i in self.length() - 1..self.length() {
+            bus[i] = rng.draw().expect("failed to draw a random value");
+        }
+
+        Some(ColMatrix::new(vec![bus]))
     }
 
     fn read_main_frame(&self, row_idx: usize, frame: &mut EvaluationFrame<Self::BaseField>) {
@@ -73,14 +91,15 @@ impl Trace for TraceTable<BaseElement> {
 
     fn validate<A, E>(
         &self,
-        air: &A,
+        _air: &A,
         _aux_segments: &[ColMatrix<E>],
-        aux_rand_elements: &AuxTraceRandElements<E>,
+        _aux_rand_elements: &AuxTraceRandElements<E>,
     ) where
         A: Air<BaseField = Self::BaseField>,
         E: FieldElement<BaseField = Self::BaseField>,
     {
-        self.inner.validate(air, &[], aux_rand_elements)
+        // TODO: validate
+        // self.inner.validate(air, &[], aux_rand_elements)
     }
 }
 

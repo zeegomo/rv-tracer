@@ -53,10 +53,10 @@ pub fn verify<H: ElementHasher<BaseField = BaseElement>>(
     proof: StarkProof,
 ) -> Result<(), VerifierError> {
     let now = Instant::now();
-    let acceptable_options =
-        winterfell::AcceptableOptions::OptionSet(vec![proof.options().clone()]);
+    // let acceptable_options =
+    //     winterfell::AcceptableOptions::OptionSet(vec![proof.options().clone()]);
 
-    winterfell::verify::<air::RiscvAir, H, DefaultRandomCoin<H>>(proof, (), &acceptable_options)?;
+    winterfell::verify::<air::RiscvAir, H, DefaultRandomCoin<H>>(proof, ())?;
     log::debug!("Verified proof in {} ms", now.elapsed().as_millis());
     Ok(())
 }

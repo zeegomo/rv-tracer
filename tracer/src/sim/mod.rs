@@ -1,13 +1,13 @@
 use crate::trace::TraceTable;
-use memory::SimpleMemory;
+use memory::Memory;
 use rand::Rng;
 use rvsim::elf::Elf32;
 use rvsim::*;
 use trace_defs::{
-    BODY, CYCLE, H_0, H_1, H_2, INS_END, MAIN_TRACE_WIDTH, PC, RD_BITS_END, RS1_BITS_END,
-    RS2_BITS_END,
+    BODY, CHIPLETS_START, CYCLE, H_0, H_1, H_2, INS_END, LOADING, MAIN_TRACE_WIDTH, PC,
+    PC_CONTENTS, RD_BITS_END, READING_PC, RS1_BITS_END, RS2_BITS_END, UNSIGNED_PC,
 };
-use winterfell::math::{FieldElement, StarkField};
+use winterfell::math::{fields::f64::BaseElement, FieldElement};
 
 pub mod memory;
 
@@ -15,7 +15,7 @@ pub mod memory;
 const MIN_LEN: usize = 8;
 
 pub struct Tracer {
-    memory: SimpleMemory,
+    memory: Memory,
     state: CpuState,
     executed: Vec<Op>,
     clock: SimpleClock,
@@ -57,7 +57,7 @@ impl<'a> From<Elf32<'a>> for LoadData {
 impl Tracer {
     pub fn new(state: CpuState, data: LoadData) -> Self {
         let clock = rvsim::SimpleClock::new();
-        let memory = SimpleMemory::new();
+        let memory = Memory::new();
         Self {
             memory,
             state,
@@ -77,8 +77,11 @@ impl Tracer {
             trace[i] = signed(self.state.x[i]);
         }
         trace[PC] = signed(self.state.pc);
+        trace[UNSIGNED_PC] = self.state.pc.into();
+        trace[READING_PC] = E::ONE;
         let pc = self.insn_at_pc();
         Self::save_u32_to_bits(&mut trace[INS_END..], pc);
+        trace[PC_CONTENTS] = pc.into();
         let clock = self.clock.read_cycle();
         trace[BODY] = E::ONE;
         trace[CYCLE] = clock.into();
@@ -93,6 +96,9 @@ impl Tracer {
         let mut rd_idx = 0;
         let mut current_trace = self.current_trace();
         loop {
+            if self.clock.read_cycle() == 32 {
+                break;
+            }
             // Save current state to trace
             let rs1 = self.state.x[self.next_rs1() as usize];
             let rs2 = self.state.x[self.next_rs2() as usize];
@@ -109,7 +115,7 @@ impl Tracer {
             match self.interp().step() {
                 Ok(op) => {
                     self.executed.push(op);
-                    log::trace!("executed {:?}", op);
+                    println!("executed {:?}", op);
                     current_trace = self.current_trace();
 
                     match op {
@@ -161,37 +167,35 @@ impl Tracer {
                     break;
                 }
             }
+            self.memory.advance();
+            // next rd is now the current rd as we've executed the instruction
         }
         trace
     }
 
-    fn interp(&mut self) -> Interp<'_, '_, '_, SimpleMemory, SimpleClock> {
+    fn interp(&mut self) -> Interp<'_, '_, '_, Memory, SimpleClock> {
         Interp::new(&mut self.state, &mut self.memory, &mut self.clock)
     }
 
-    fn insn_at_pc(&mut self) -> u32 {
-        let pc = self.state.pc;
-        let mut insn = 0u32;
-        self.interp().mem.access(pc, MemoryAccess::Load(&mut insn));
-        insn
+    fn insn_at_pc(&self) -> u32 {
+        self.memory.get(self.state.pc)
     }
 
     // rs1 used by next instruction
-    fn next_rs1(&mut self) -> u32 {
+    fn next_rs1(&self) -> u32 {
         self.insn_at_pc() >> 15 & 0x1f
     }
 
     // rs2 used by next instruction
-    fn next_rs2(&mut self) -> u32 {
+    fn next_rs2(&self) -> u32 {
         self.insn_at_pc() >> 20 & 0x1f
     }
 
     // rd used by next instruction
-    fn next_rd(&mut self) -> u32 {
+    fn next_rd(&self) -> u32 {
         self.insn_at_pc() >> 7 & 0x1f
     }
 
-    #[allow(clippy::needless_range_loop)]
     fn save_u32_to_bits<E: FieldElement>(trace: &mut [E], val: u32) {
         assert!(trace.len() >= 32);
         for i in 0..32 {
@@ -201,48 +205,89 @@ impl Tracer {
 
     /// Builds an execution trace for computing a Fibonacci sequence of the specified length such
     /// that each row advances the sequence by 2 terms.
-    pub fn build_trace<E: StarkField>(mut self) -> TraceTable<E> {
-        let mut trace = Self::load_program_to_memory(&self.data, &mut self.memory);
-        let stack_trace = self.run::<E>();
+    pub fn build_trace(mut self) -> TraceTable<BaseElement> {
+        let mut trace = self.load_program_to_memory();
+        println!("loading completed in {} cycles", self.clock.read_cycle());
+        let stack_trace = self.run::<BaseElement>();
         for (trace, stack_trace) in trace.iter_mut().zip(stack_trace) {
             trace.extend(stack_trace);
         }
         let trace_len = trace[0].len();
-        log::debug!("program completed in {} cycles", trace_len);
+        println!("program completed in {} cycles", trace_len);
         assert!(
             trace_len > 1,
             "the trace length was {trace_len}, maybe something went wrong?",
         );
+        let memory_trace_len = self.memory.trace_len();
+        println!(
+            "trace length stack/memory: {}/{}",
+            trace_len, memory_trace_len
+        );
+        let trace_len = core::cmp::max(trace_len, memory_trace_len);
+
         let next_power_of_two = core::cmp::max(trace_len.next_power_of_two(), MIN_LEN);
         // TODO: we neeed at least 1 row of padding
-        log::debug!("padding trace to {} cycles", next_power_of_two);
+        println!("padding trace to {} cycles", next_power_of_two);
         // TODO: proper padding
         for (i, column) in trace.iter_mut().enumerate() {
             let pad = next_power_of_two - column.len();
-            if i == BODY {
-                *column.last_mut().unwrap() = E::ZERO;
-                column.extend(vec![E::ZERO; pad]);
+            if i == BODY || i == LOADING || i == READING_PC {
+                if i != READING_PC {
+                    *column.last_mut().unwrap() = BaseElement::ZERO;
+                }
+                column.extend(vec![BaseElement::ZERO; pad]);
             } else {
                 let mut bytes = vec![0u32; pad];
                 rand::thread_rng().fill(&mut bytes[..]);
-                column.extend(bytes.iter().map(|&b| E::from(b)));
+                column.extend(bytes.iter().map(|&b| BaseElement::from(b)));
             }
         }
-        TraceTable::new(trace)
+        let mem_trace = self
+            .memory
+            .to_trace(next_power_of_two, next_power_of_two - memory_trace_len);
+
+        for (trace, mem_trace) in trace.iter_mut().skip(CHIPLETS_START).zip(mem_trace.0) {
+            *trace = mem_trace;
+        }
+
+        TraceTable::new(trace, mem_trace.1)
     }
 
-    fn load_program_to_memory<E: Clone>(data: &LoadData, memory: &mut SimpleMemory) -> Vec<Vec<E>> {
-        for (addr, segment) in &data.data {
-            memory.load_slice(*addr, segment);
+    fn load_program_to_memory(&mut self) -> Vec<Vec<BaseElement>> {
+        let mut trace = vec![vec![]; MAIN_TRACE_WIDTH];
+
+        let bytes = self.data.data.iter().flat_map(|(addr, segment)| {
+            assert!(segment.len() % 4 == 0);
+            segment.chunks_exact(4).enumerate().map(|(i, bytes)| {
+                (
+                    *addr + i as u32 * 4,
+                    u32::from_le_bytes(bytes.try_into().unwrap()),
+                )
+            })
+        });
+
+        // TODO: we can make this more efficient as bytes are likely contiguous
+        for (addr, byte) in bytes {
+            self.memory.store(addr, byte);
+            // addr -= 300;
+            let mut row = vec![BaseElement::ZERO; MAIN_TRACE_WIDTH];
+            row[PC] = addr.into();
+            row[PC_CONTENTS] = byte.into();
+            row[CYCLE] = self.memory.clock().into();
+            row[READING_PC] = BaseElement::ONE;
+            row[LOADING] = BaseElement::ONE;
+            for (col, val) in trace.iter_mut().zip(row) {
+                col.push(val)
+            }
+            self.memory.advance();
         }
-        // TODO: this should generate some trace to verify it was loaded properly, but it mosly depends on memory
-        // constraints which will be added later
-        let trace = vec![vec![]; MAIN_TRACE_WIDTH];
+
+        self.clock.instret = self.memory.clock() as u64;
         trace
     }
 }
 
-pub fn sim<E: StarkField>(elf: Elf32) -> TraceTable<E> {
+pub fn sim(elf: Elf32) -> TraceTable<BaseElement> {
     // Create the virtual CPU state, setting the PC to the start of our program.
     let state = rvsim::CpuState::new(elf.header.entry);
 
