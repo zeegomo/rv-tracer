@@ -1,11 +1,11 @@
-use crate::air::RiscvAir;
+use crate::{air::RiscvAir, trace::TraceTable};
 use core::marker::PhantomData;
 use winterfell::{
     crypto::{DefaultRandomCoin, ElementHasher},
     math::{fields::f64::BaseElement, FieldElement},
     matrix::ColMatrix,
     AuxTraceRandElements, ConstraintCompositionCoefficients, DefaultConstraintEvaluator,
-    DefaultTraceLde, ProofOptions, Prover, StarkDomain, TraceInfo, TracePolyTable, TraceTable,
+    DefaultTraceLde, ProofOptions, Prover, StarkDomain, TraceInfo, TracePolyTable,
 };
 
 pub struct RiscvProver<H: ElementHasher> {

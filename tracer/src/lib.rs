@@ -1,16 +1,16 @@
 pub mod air;
-pub mod sim;
-// pub mod prove;
-// pub mod rs;
 pub mod prover;
+pub mod sim;
+pub mod trace;
 use rvsim::elf::Elf32;
 use std::time::Instant;
 use winterfell::ProverError;
 
+use trace::TraceTable;
 use winterfell::{
     crypto::{DefaultRandomCoin, ElementHasher},
     math::fields::f64::BaseElement,
-    ProofOptions, Prover, StarkProof, Trace, TraceTable, VerifierError,
+    ProofOptions, Prover, StarkProof, Trace, VerifierError,
 };
 
 pub fn prove<H: ElementHasher<BaseField = BaseElement>>(
@@ -37,7 +37,7 @@ pub fn prove_from_elf<H: ElementHasher<BaseField = BaseElement>>(
     let now = Instant::now();
     let trace = sim::sim(elf);
 
-    let trace_width = trace.width();
+    let trace_width = trace.get_info().width();
     let trace_length = trace.length();
     log::debug!(
         "Generated execution trace of {} registers and 2^{} steps in {} ms",

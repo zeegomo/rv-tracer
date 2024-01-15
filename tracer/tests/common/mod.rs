@@ -3,12 +3,15 @@ pub mod perturb;
 
 use perturb::Field;
 use quickcheck::{Arbitrary, Gen};
-use rv_tracer::sim::{LoadData, Tracer};
+use rv_tracer::{
+    sim::{LoadData, Tracer},
+    trace::TraceTable,
+};
 use std::fmt::Debug;
-use trace_defs::TRACE_WIDTH;
+use trace_defs::MAIN_TRACE_WIDTH;
 use winterfell::{
     math::{fields::f64::BaseElement, StarkField},
-    FieldExtension, ProofOptions, TraceTable,
+    FieldExtension, ProofOptions,
 };
 
 const NUM_QUERIES: usize = 10;
@@ -146,8 +149,8 @@ impl<E: StarkField + 'static, O: Op + 'static + Arbitrary, P: Field + Clone + 's
         let state = CpuState { regs: [0; 32] };
         let mut table = op.execute(state.clone());
 
-        let mut current = [E::ZERO; TRACE_WIDTH];
-        let mut next = [E::ZERO; TRACE_WIDTH];
+        let mut current = [E::ZERO; MAIN_TRACE_WIDTH];
+        let mut next = [E::ZERO; MAIN_TRACE_WIDTH];
         table.read_row_into(0, &mut current);
         table.read_row_into(1, &mut next);
         P::perturb(&mut current, &mut next, g);

@@ -1,13 +1,13 @@
+use crate::trace::TraceTable;
 use memory::SimpleMemory;
 use rand::Rng;
 use rvsim::elf::Elf32;
 use rvsim::*;
-use trace::RS1_BITS_END;
-use trace_defs::{self as trace, TRACE_WIDTH};
-use winterfell::{
-    math::{FieldElement, StarkField},
-    TraceTable,
+use trace_defs::{
+    BODY, CYCLE, H_0, H_1, H_2, INS_END, MAIN_TRACE_WIDTH, PC, RD_BITS_END, RS1_BITS_END,
+    RS2_BITS_END,
 };
+use winterfell::math::{FieldElement, StarkField};
 
 pub mod memory;
 
@@ -68,20 +68,20 @@ impl Tracer {
     }
 
     #[allow(clippy::needless_range_loop)]
-    pub fn current_trace<E>(&mut self) -> [E; TRACE_WIDTH]
+    pub fn current_trace<E>(&mut self) -> [E; MAIN_TRACE_WIDTH]
     where
         E: FieldElement,
     {
-        let mut trace = [0u32.into(); TRACE_WIDTH];
+        let mut trace = [0u32.into(); MAIN_TRACE_WIDTH];
         for i in 0..32 {
             trace[i] = signed(self.state.x[i]);
         }
-        trace[trace::PC] = signed(self.state.pc);
+        trace[PC] = signed(self.state.pc);
         let pc = self.insn_at_pc();
-        Self::save_u32_to_bits(&mut trace[trace::INS_END..], pc);
+        Self::save_u32_to_bits(&mut trace[INS_END..], pc);
         let clock = self.clock.read_cycle();
-        trace[trace::BODY] = E::ONE;
-        trace[trace::CYCLE] = clock.into();
+        trace[BODY] = E::ONE;
+        trace[CYCLE] = clock.into();
         assert!(clock < 100);
         trace
     }
@@ -89,7 +89,7 @@ impl Tracer {
     where
         E: FieldElement,
     {
-        let mut trace = vec![Vec::new(); TRACE_WIDTH];
+        let mut trace = vec![Vec::new(); MAIN_TRACE_WIDTH];
         let mut rd_idx = 0;
         let mut current_trace = self.current_trace();
         loop {
@@ -98,11 +98,11 @@ impl Tracer {
             let rs2 = self.state.x[self.next_rs2() as usize];
             let rd = self.state.x[rd_idx];
             rd_idx = self.next_rd() as usize;
-            Self::save_u32_to_bits(&mut current_trace[trace::RS1_BITS_END..], rs1);
-            Self::save_u32_to_bits(&mut current_trace[trace::RS2_BITS_END..], rs2);
-            Self::save_u32_to_bits(&mut current_trace[trace::RD_BITS_END..], rd);
+            Self::save_u32_to_bits(&mut current_trace[RS1_BITS_END..], rs1);
+            Self::save_u32_to_bits(&mut current_trace[RS2_BITS_END..], rs2);
+            Self::save_u32_to_bits(&mut current_trace[RD_BITS_END..], rd);
 
-            for i in 0..TRACE_WIDTH {
+            for i in 0..MAIN_TRACE_WIDTH {
                 trace[i].push(current_trace[i]);
             }
             let prev = self.state.clone();
@@ -116,24 +116,24 @@ impl Tracer {
                         Op::Auipc { u_imm, .. } => {
                             let pc = prev.pc as i32;
                             // TODO: this is essentially re-doing an addition
-                            current_trace[trace::H_0] = signed_overflow(pc, u_imm);
+                            current_trace[H_0] = signed_overflow(pc, u_imm);
                         }
                         Op::Addi { i_imm, rs1, .. } => {
                             let rs1 = prev.x[rs1] as i32;
                             // TODO: this is essentially re-doing an addition
-                            current_trace[trace::H_0] = signed_overflow(rs1, i_imm);
+                            current_trace[H_0] = signed_overflow(rs1, i_imm);
                         }
                         Op::Jal { j_imm, .. } => {
                             let pc = prev.pc as i32;
-                            current_trace[trace::H_0] = signed_overflow(pc, 4);
-                            current_trace[trace::H_1] = signed_overflow(j_imm, pc);
+                            current_trace[H_0] = signed_overflow(pc, 4);
+                            current_trace[H_1] = signed_overflow(j_imm, pc);
                         }
                         Op::Jalr { i_imm, rs1, .. } => {
                             let pc = prev.pc as i32;
                             let rs1 = prev.x[rs1] as i32;
-                            current_trace[trace::H_0] = signed_overflow(pc, 4);
-                            current_trace[trace::H_1] = signed_overflow(rs1, i_imm);
-                            current_trace[trace::H_2] = E::from((i_imm as u32 ^ rs1 as u32) & 1);
+                            current_trace[H_0] = signed_overflow(pc, 4);
+                            current_trace[H_1] = signed_overflow(rs1, i_imm);
+                            current_trace[H_2] = E::from((i_imm as u32 ^ rs1 as u32) & 1);
                             let rs1 = rs1 as u32;
                             for i in 0..32 {
                                 current_trace[RS1_BITS_END + i] = ((rs1 >> (31 - i)) & 1).into();
@@ -143,13 +143,11 @@ impl Tracer {
                             let rs1 = prev.x[rs1] as i32;
                             // FIXME: this is a workaround for the fact that we don't have constraints
                             // on h0 > 0, which would make the first constraint valid for rd = 1 when rs1 = i_imm
-                            current_trace[trace::H_0] = E::ONE;
+                            current_trace[H_0] = E::ONE;
                             if rs1 < i_imm {
-                                current_trace[trace::H_0] =
-                                    E::from((i_imm as i64 - rs1 as i64) as u32);
+                                current_trace[H_0] = E::from((i_imm as i64 - rs1 as i64) as u32);
                             } else {
-                                current_trace[trace::H_1] =
-                                    E::from((rs1 as i64 - i_imm as i64) as u32);
+                                current_trace[H_1] = E::from((rs1 as i64 - i_imm as i64) as u32);
                             }
                         }
                         _ => {}
@@ -221,7 +219,7 @@ impl Tracer {
         // TODO: proper padding
         for (i, column) in trace.iter_mut().enumerate() {
             let pad = next_power_of_two - column.len();
-            if i == trace::BODY {
+            if i == BODY {
                 *column.last_mut().unwrap() = E::ZERO;
                 column.extend(vec![E::ZERO; pad]);
             } else {
@@ -230,7 +228,7 @@ impl Tracer {
                 column.extend(bytes.iter().map(|&b| E::from(b)));
             }
         }
-        TraceTable::init(trace)
+        TraceTable::new(trace)
     }
 
     fn load_program_to_memory<E: Clone>(data: &LoadData, memory: &mut SimpleMemory) -> Vec<Vec<E>> {
@@ -239,7 +237,7 @@ impl Tracer {
         }
         // TODO: this should generate some trace to verify it was loaded properly, but it mosly depends on memory
         // constraints which will be added later
-        let trace = vec![vec![]; TRACE_WIDTH];
+        let trace = vec![vec![]; MAIN_TRACE_WIDTH];
         trace
     }
 }
