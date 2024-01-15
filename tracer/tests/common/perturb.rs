@@ -33,16 +33,16 @@ pub struct BinRd;
 
 pub trait Field: Debug {
     fn perturb<E: StarkField>(
-        prev: &mut [E; TRACE_WIDTH],
-        next: &mut [E; TRACE_WIDTH],
+        prev: &mut [E; MAIN_TRACE_WIDTH],
+        next: &mut [E; MAIN_TRACE_WIDTH],
         rng: &mut Gen,
     );
 }
 
 impl Field for Rd {
     fn perturb<E: StarkField>(
-        prev: &mut [E; TRACE_WIDTH],
-        next: &mut [E; TRACE_WIDTH],
+        prev: &mut [E; MAIN_TRACE_WIDTH],
+        next: &mut [E; MAIN_TRACE_WIDTH],
         rng: &mut Gen,
     ) {
         let rd = read_reg::<RD_END, _>(prev);
@@ -52,8 +52,8 @@ impl Field for Rd {
 
 impl Field for BinRd {
     fn perturb<E: StarkField>(
-        prev: &mut [E; TRACE_WIDTH],
-        next: &mut [E; TRACE_WIDTH],
+        prev: &mut [E; MAIN_TRACE_WIDTH],
+        next: &mut [E; MAIN_TRACE_WIDTH],
         _rng: &mut Gen,
     ) {
         let rd = read_reg::<RD_END, _>(prev);
@@ -63,8 +63,8 @@ impl Field for BinRd {
 
 impl Field for Rs1 {
     fn perturb<E: StarkField>(
-        prev: &mut [E; TRACE_WIDTH],
-        _next: &mut [E; TRACE_WIDTH],
+        prev: &mut [E; MAIN_TRACE_WIDTH],
+        _next: &mut [E; MAIN_TRACE_WIDTH],
         rng: &mut Gen,
     ) {
         let rs1 = read_reg::<RS1_END, _>(prev);
@@ -74,8 +74,8 @@ impl Field for Rs1 {
 
 impl Field for Rs2 {
     fn perturb<E: StarkField>(
-        prev: &mut [E; TRACE_WIDTH],
-        _next: &mut [E; TRACE_WIDTH],
+        prev: &mut [E; MAIN_TRACE_WIDTH],
+        _next: &mut [E; MAIN_TRACE_WIDTH],
         rng: &mut Gen,
     ) {
         let rs2 = read_reg::<RS2_END, _>(prev);
@@ -85,8 +85,8 @@ impl Field for Rs2 {
 
 impl Field for Imm {
     fn perturb<E: StarkField>(
-        prev: &mut [E; TRACE_WIDTH],
-        _next: &mut [E; TRACE_WIDTH],
+        prev: &mut [E; MAIN_TRACE_WIDTH],
+        _next: &mut [E; MAIN_TRACE_WIDTH],
         rng: &mut Gen,
     ) {
         perturb_bits::<12, IMM_END, _>(prev, rng);
@@ -95,8 +95,8 @@ impl Field for Imm {
 
 impl Field for Uimm {
     fn perturb<E: StarkField>(
-        prev: &mut [E; TRACE_WIDTH],
-        _next: &mut [E; TRACE_WIDTH],
+        prev: &mut [E; MAIN_TRACE_WIDTH],
+        _next: &mut [E; MAIN_TRACE_WIDTH],
         rng: &mut Gen,
     ) {
         perturb_bits::<20, UIMM_END, _>(prev, rng);
@@ -105,8 +105,8 @@ impl Field for Uimm {
 
 impl Field for RdBits {
     fn perturb<E: StarkField>(
-        _prev: &mut [E; TRACE_WIDTH],
-        next: &mut [E; TRACE_WIDTH],
+        _prev: &mut [E; MAIN_TRACE_WIDTH],
+        next: &mut [E; MAIN_TRACE_WIDTH],
         rng: &mut Gen,
     ) {
         perturb_reg_bits::<RD_BITS_END, _>(next, rng);
@@ -115,8 +115,8 @@ impl Field for RdBits {
 
 impl Field for Rs1Bits {
     fn perturb<E: StarkField>(
-        prev: &mut [E; TRACE_WIDTH],
-        _next: &mut [E; TRACE_WIDTH],
+        prev: &mut [E; MAIN_TRACE_WIDTH],
+        _next: &mut [E; MAIN_TRACE_WIDTH],
         rng: &mut Gen,
     ) {
         perturb_reg_bits::<RS1_BITS_END, _>(prev, rng);
@@ -125,8 +125,8 @@ impl Field for Rs1Bits {
 
 impl Field for Rs2Bits {
     fn perturb<E: StarkField>(
-        prev: &mut [E; TRACE_WIDTH],
-        _next: &mut [E; TRACE_WIDTH],
+        prev: &mut [E; MAIN_TRACE_WIDTH],
+        _next: &mut [E; MAIN_TRACE_WIDTH],
         rng: &mut Gen,
     ) {
         perturb_reg_bits::<RS2_BITS_END, _>(prev, rng);
@@ -135,8 +135,8 @@ impl Field for Rs2Bits {
 
 impl Field for Pc {
     fn perturb<E: StarkField>(
-        prev: &mut [E; TRACE_WIDTH],
-        _next: &mut [E; TRACE_WIDTH],
+        prev: &mut [E; MAIN_TRACE_WIDTH],
+        _next: &mut [E; MAIN_TRACE_WIDTH],
         rng: &mut Gen,
     ) {
         perturb_field(&mut prev[PC], rng);
@@ -144,7 +144,7 @@ impl Field for Pc {
 }
 
 fn perturb_bits<const N: usize, const OFFSET: usize, E: StarkField>(
-    trace: &mut [E; TRACE_WIDTH],
+    trace: &mut [E; MAIN_TRACE_WIDTH],
     rng: &mut Gen,
 ) {
     let mut change = u64::arbitrary(rng) & ((1 << N) - 1);
@@ -174,13 +174,13 @@ fn perturb_field<E: StarkField>(field: &mut E, rng: &mut Gen) {
 }
 
 fn perturb_reg_bits<const OFFSET: usize, E: StarkField>(
-    trace: &mut [E; TRACE_WIDTH],
+    trace: &mut [E; MAIN_TRACE_WIDTH],
     rng: &mut Gen,
 ) {
     perturb_bits::<REG_BITS, OFFSET, _>(trace, rng);
 }
 
-fn read_reg<const OFFSET: usize, E: StarkField>(trace: &[E; TRACE_WIDTH]) -> u32 {
+fn read_reg<const OFFSET: usize, E: StarkField>(trace: &[E; MAIN_TRACE_WIDTH]) -> u32 {
     let mut val = 0;
     for i in 0..REG_NUM_BITS {
         if trace[OFFSET + i] == E::ONE {

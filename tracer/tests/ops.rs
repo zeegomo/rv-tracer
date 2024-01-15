@@ -3,7 +3,7 @@ use common::ops::*;
 use common::perturb::*;
 use common::*;
 use rv_tracer::{prove, verify};
-use trace_defs::TRACE_WIDTH;
+use trace_defs::MAIN_TRACE_WIDTH;
 use winterfell::{
     math::{fields::f64::BaseElement, FieldElement},
     Air, EvaluationFrame, Trace as _,
@@ -19,7 +19,7 @@ macro_rules! generate_tests {
                     let trace_info = table.get_info();
                     let air = rv_tracer::air::RiscvAir::new(trace_info, (), PROOF_OPTIONS);
                     let mut results = vec![BaseElement::ZERO; air.context().num_transition_constraints()];
-                    let mut frame = EvaluationFrame::new(TRACE_WIDTH);
+                    let mut frame = EvaluationFrame::new(MAIN_TRACE_WIDTH);
                     table.read_main_frame(0, &mut frame);
                     air.evaluate_transition(&frame, &[], &mut results);
                     results == vec![BaseElement::ZERO; air.context().num_transition_constraints()]
@@ -33,7 +33,7 @@ macro_rules! generate_tests {
                         let trace_info = table.get_info();
                         let air = rv_tracer::air::RiscvAir::new(trace_info, (), PROOF_OPTIONS);
                         let mut results = vec![BaseElement::ZERO; air.context().num_transition_constraints()];
-                        let mut frame = EvaluationFrame::new(TRACE_WIDTH);
+                        let mut frame = EvaluationFrame::new(MAIN_TRACE_WIDTH);
                         table.read_main_frame(0, &mut frame);
                         air.evaluate_transition(&frame, &[], &mut results);
 

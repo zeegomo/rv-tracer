@@ -11,7 +11,7 @@ pub struct RiscvAir {
     context: AirContext<BaseElement>,
 }
 
-use trace_defs::TRACE_WIDTH;
+use trace_defs::MAIN_TRACE_WIDTH;
 
 impl Air for RiscvAir {
     type BaseField = BaseElement;
@@ -27,7 +27,7 @@ impl Air for RiscvAir {
         degrees.extend(ops::jal::constraint_degrees());
         degrees.extend(ops::jalr::constraint_degrees());
         degrees.extend(ops::slti::constraint_degrees());
-        assert_eq!(TRACE_WIDTH, trace_info.width());
+        assert_eq!(MAIN_TRACE_WIDTH, trace_info.width());
         // We also need to specify the exact number of assertions we will place against the
         // execution trace. This number must be the same as the number of items in a vector
         // returned from the get_assertions() method below.
