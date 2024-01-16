@@ -5,7 +5,7 @@ use once_cell::sync::Lazy;
 use perturb::Field;
 use quickcheck::{Arbitrary, Gen};
 use rv_tracer::{
-    sim::{LoadData, Tracer},
+    executor::{exec, Program},
     trace::TraceTable,
 };
 use std::fmt::Debug;
@@ -38,30 +38,30 @@ const OP_ADDR: u32 = 0x200;
 
 macro_rules! execute {
     ($ops:expr, $state:expr) => {{
-        let load_data = LoadData::new(vec![(
+        let mut program = Program::new(
             OP_ADDR,
-            $ops.iter()
-                .flat_map(|o| o.to_op().to_le_bytes().into_iter())
-                .collect::<Vec<_>>(),
-        )]);
-        let mut cpu_state = rvsim::CpuState::new(OP_ADDR as u32);
-        cpu_state.x = $state.regs;
-        let tracer = Tracer::new(cpu_state, load_data);
-        let trace = tracer.build_trace();
-        trace
+            vec![(
+                OP_ADDR,
+                $ops.iter()
+                    .flat_map(|o| o.to_op().to_le_bytes().into_iter())
+                    .collect::<Vec<_>>(),
+            )],
+        );
+        program.set_starting_state($state.to_rvsim_state(OP_ADDR));
+        exec(&program)
     }};
     ($ops:expr, $state:expr, $pc:expr) => {{
-        let load_data = LoadData::new(vec![(
+        let mut program = Program::new(
             $pc,
-            $ops.iter()
-                .flat_map(|o| o.to_op().to_le_bytes().into_iter())
-                .collect::<Vec<_>>(),
-        )]);
-        let mut cpu_state = rvsim::CpuState::new($pc);
-        cpu_state.x = $state.regs;
-        let tracer = Tracer::new(cpu_state, load_data);
-        let trace = tracer.build_trace();
-        trace
+            vec![(
+                $pc,
+                $ops.iter()
+                    .flat_map(|o| o.to_op().to_le_bytes().into_iter())
+                    .collect::<Vec<_>>(),
+            )],
+        );
+        program.set_starting_state($state.to_rvsim_state($pc));
+        exec(&program)
     }};
 }
 
@@ -89,6 +89,14 @@ impl<T: Op> Op for &T {
 #[derive(Debug, Clone)]
 pub struct CpuState {
     pub regs: [u32; 32],
+}
+
+impl CpuState {
+    fn to_rvsim_state(&self, pc: u32) -> rvsim::CpuState {
+        let mut state = rvsim::CpuState::new(pc);
+        state.x = self.regs;
+        state
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -180,8 +188,8 @@ impl<O: Op, P: Field + Clone + 'static> Clone for PerturbedTrace<O, P> {
             table,
             op: self.op.clone(),
             state: self.state.clone(),
-            current: self.current.clone(),
-            next: self.next.clone(),
+            current: self.current,
+            next: self.next,
             _phantom: std::marker::PhantomData,
         }
     }

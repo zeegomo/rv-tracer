@@ -12,6 +12,7 @@ use winterfell::math::fields::f64::BaseElement;
 
 const SYS_CTX: u32 = 0x0;
 pub const MEMORY_TRACE_WIDTH: usize = CHIPLETS_WIDTH;
+const NUM_RAND_ROWS: usize = 1;
 
 pub struct Memory {
     clk: u32,
@@ -130,14 +131,14 @@ impl Memory {
     ///   clock cycles computed as described above.
     ///
     /// For the first row of the trace, values in `d0`, `d1`, and `d_inv` are set to zeros.
-    pub fn to_trace(
-        &self,
+    pub fn into_trace(
+        self,
         trace_len: usize,
-        num_rand_rows: usize,
     ) -> ([Vec<BaseElement>; MEMORY_TRACE_WIDTH], AuxTraceBuilder) {
+        assert!(self.trace_len() <= trace_len);
         let trace = self
             .build_chiplet_trace()
-            .into_trace(trace_len, num_rand_rows);
+            .into_trace(trace_len, NUM_RAND_ROWS);
 
         (trace.trace, trace.aux_builder)
     }

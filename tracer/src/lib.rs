@@ -1,10 +1,12 @@
 pub mod air;
+pub mod executor;
 pub mod prover;
-pub mod sim;
 pub mod trace;
 use rvsim::elf::Elf32;
 use std::time::Instant;
 use winterfell::ProverError;
+
+pub type Felem = winterfell::math::fields::f64::BaseElement;
 
 use trace::TraceTable;
 use winterfell::{
@@ -35,7 +37,7 @@ pub fn prove_from_elf<H: ElementHasher<BaseField = BaseElement>>(
     );
     // generate execution trace
     let now = Instant::now();
-    let trace = sim::sim(elf);
+    let trace = executor::exec(&(&elf).into());
 
     let trace_width = trace.get_info().width();
     let trace_length = trace.length();

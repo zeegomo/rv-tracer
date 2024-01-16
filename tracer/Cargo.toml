@@ -39,3 +39,6 @@ bench = false
 name = "rv-tracer"
 path = "src/main.rs"
 bench = false
+
+[features]
+integration-test = []
