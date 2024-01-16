@@ -17,12 +17,10 @@ env_logger = "0.10.1"
 rand = "0.8.5"
 trace-defs = { path = "../trace-defs" }
 constraint-macros = { path = "../constraint-macros" }
-miden-processor = { git = "https://github.com/zeegomo/miden-vm", branch = "simple-mem-constraints" }
-miden-air = { git = "https://github.com/zeegomo/miden-vm", branch = "simple-mem-constraints" }
+miden-processor = { path = "../miden-vm/processor" }
+miden-air = { path = "../miden-vm/air" }
 
 [dev-dependencies]
-proptest = "1.0.0"
-proptest-derive = "0.4"
 paste = "1"
 criterion = "0.3"
 quickcheck = "1"
