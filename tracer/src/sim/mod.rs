@@ -115,7 +115,7 @@ impl Tracer {
             match self.interp().step() {
                 Ok(op) => {
                     self.executed.push(op);
-                    println!("executed {:?}", op);
+                    log::trace!("executed {:?}", op);
                     current_trace = self.current_trace();
 
                     match op {
@@ -207,27 +207,28 @@ impl Tracer {
     /// that each row advances the sequence by 2 terms.
     pub fn build_trace(mut self) -> TraceTable<BaseElement> {
         let mut trace = self.load_program_to_memory();
-        println!("loading completed in {} cycles", self.clock.read_cycle());
+        log::debug!("loading completed in {} cycles", self.clock.read_cycle());
         let stack_trace = self.run::<BaseElement>();
         for (trace, stack_trace) in trace.iter_mut().zip(stack_trace) {
             trace.extend(stack_trace);
         }
         let trace_len = trace[0].len();
-        println!("program completed in {} cycles", trace_len);
+        log::debug!("program completed in {} cycles", trace_len);
         assert!(
             trace_len > 1,
             "the trace length was {trace_len}, maybe something went wrong?",
         );
         let memory_trace_len = self.memory.trace_len();
-        println!(
+        log::trace!(
             "trace length stack/memory: {}/{}",
-            trace_len, memory_trace_len
+            trace_len,
+            memory_trace_len
         );
         let trace_len = core::cmp::max(trace_len, memory_trace_len);
 
         let next_power_of_two = core::cmp::max(trace_len.next_power_of_two(), MIN_LEN);
         // TODO: we neeed at least 1 row of padding
-        println!("padding trace to {} cycles", next_power_of_two);
+        log::debug!("padding trace to {} cycles", next_power_of_two);
         // TODO: proper padding
         for (i, column) in trace.iter_mut().enumerate() {
             let pad = next_power_of_two - column.len();
