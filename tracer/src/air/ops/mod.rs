@@ -63,14 +63,6 @@ air!(
         rd * rd - rd => 2
 );
 
-air!(
-    name = sb,
-    opcode = "0100011",
-    funct3 = "000",
-    parse = rs2 / rs1,
-    constraints = (rs1 + simm - rs2) => 1
-);
-
 // // TODO: add range checks to H0 and H1
 // // This check uses 2 additional helper registers to ensure the computation was
 // // performed correctly.

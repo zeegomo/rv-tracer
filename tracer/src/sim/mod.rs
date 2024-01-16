@@ -96,9 +96,6 @@ impl Tracer {
         let mut rd_idx = 0;
         let mut current_trace = self.current_trace();
         loop {
-            if self.clock.read_cycle() == 32 {
-                break;
-            }
             // Save current state to trace
             let rs1 = self.state.x[self.next_rs1() as usize];
             let rs2 = self.state.x[self.next_rs2() as usize];
@@ -168,7 +165,6 @@ impl Tracer {
                 }
             }
             self.memory.advance();
-            // next rd is now the current rd as we've executed the instruction
         }
         trace
     }
@@ -270,7 +266,6 @@ impl Tracer {
         // TODO: we can make this more efficient as bytes are likely contiguous
         for (addr, byte) in bytes {
             self.memory.store(addr, byte);
-            // addr -= 300;
             let mut row = vec![BaseElement::ZERO; MAIN_TRACE_WIDTH];
             row[PC] = addr.into();
             row[PC_CONTENTS] = byte.into();
