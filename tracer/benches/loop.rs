@@ -1,4 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use once_cell::sync::Lazy;
 use rv_tracer::{prove, verify};
 use rvsim::elf::Elf32;
 use winterfell::{math::fields::f64::BaseElement, FieldExtension, ProofOptions};
@@ -14,29 +15,32 @@ const FRI_REMAINDER_MAX_DEGREE: usize = 255;
 
 pub type Blake3_192 = winterfell::crypto::hashers::Blake3_192<BaseElement>;
 
-pub const PROOF_OPTIONS: ProofOptions = ProofOptions::new(
-    NUM_QUERIES,
-    BLOWUP_FACTOR,
-    GRINDING_FACTOR,
-    FieldExtension::Quadratic,
-    FRI_FOLDING_FACTOR,
-    FRI_REMAINDER_MAX_DEGREE,
-);
-
+pub static PROOF_OPTIONS: Lazy<ProofOptions> = Lazy::new(|| {
+    ProofOptions::new(
+        NUM_QUERIES,
+        BLOWUP_FACTOR,
+        GRINDING_FACTOR,
+        FieldExtension::Quadratic,
+        FRI_FOLDING_FACTOR,
+        FRI_REMAINDER_MAX_DEGREE,
+    )
+});
 pub fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("loop prove", |b| {
-        let trace = rv_tracer::sim::sim(Elf32::parse(LOOP_ELF).unwrap());
-        b.iter(|| prove::<Blake3_192>(trace.clone(), black_box(PROOF_OPTIONS)))
+        b.iter(|| {
+            let trace = rv_tracer::sim::sim(Elf32::parse(LOOP_ELF).unwrap());
+            prove::<Blake3_192>(trace, black_box(PROOF_OPTIONS.clone()))
+        })
     });
 
     c.bench_function("loop verify", |b| {
         let trace = rv_tracer::sim::sim(Elf32::parse(LOOP_ELF).unwrap());
-        let proof = prove::<Blake3_192>(trace.clone(), black_box(PROOF_OPTIONS)).unwrap();
+        let proof = prove::<Blake3_192>(trace, black_box(PROOF_OPTIONS.clone())).unwrap();
         b.iter(|| verify::<Blake3_192>(proof.clone()))
     });
 
     c.bench_function("loop trace generation", |b| {
-        b.iter(|| rv_tracer::sim::sim::<BaseElement>(Elf32::parse(black_box(LOOP_ELF)).unwrap()));
+        b.iter(|| rv_tracer::sim::sim(Elf32::parse(black_box(LOOP_ELF)).unwrap()));
     });
 }
 
