@@ -17,6 +17,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+      with:
+        submodules: true
     - uses: dtolnay/rust-toolchain@stable
     - name: Build
       run: cargo build --verbose --manifest-path tracer/Cargo.toml

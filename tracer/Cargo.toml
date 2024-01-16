@@ -11,20 +11,21 @@ elf = "0.7"
 clap = { version = "4", features = ["derive"] }
 paste = "1.0.14"
 seq-macro = "0.3.5"
-winterfell = "0.7"
+winterfell = "0.6"
 log = "0.4.20"
 env_logger = "0.10.1"
 rand = "0.8.5"
 trace-defs = { path = "../trace-defs" }
 constraint-macros = { path = "../constraint-macros" }
+miden-processor = { path = "../miden-vm/processor" }
+miden-air = { path = "../miden-vm/air" }
 
 [dev-dependencies]
-proptest = "1.0.0"
-proptest-derive = "0.4"
 paste = "1"
 criterion = "0.3"
 quickcheck = "1"
 quickcheck_macros = "1"
+once_cell = "1"
 
 [[bench]]
 name = "loop"

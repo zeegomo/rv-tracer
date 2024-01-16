@@ -1,5 +1,6 @@
 use super::*;
 use quickcheck::{Arbitrary as _, Gen};
+use winterfell::math::fields::f64::BaseElement;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Lui {
@@ -16,10 +17,7 @@ impl Arbitrary for Lui {
 }
 
 impl Op for Lui {
-    fn execute<E>(&self, state: CpuState) -> TraceTable<E>
-    where
-        E: StarkField,
-    {
+    fn execute(&self, state: CpuState) -> TraceTable<BaseElement> {
         execute!(&[self], state)
     }
 
@@ -57,10 +55,7 @@ impl Arbitrary for Auipc {
 }
 
 impl Op for Auipc {
-    fn execute<E>(&self, state: CpuState) -> TraceTable<E>
-    where
-        E: StarkField,
-    {
+    fn execute(&self, state: CpuState) -> TraceTable<BaseElement> {
         execute!(&[self], state, self.pc)
     }
 
@@ -108,10 +103,7 @@ impl Arbitrary for Addi {
 }
 
 impl Op for Addi {
-    fn execute<E>(&self, mut state: CpuState) -> TraceTable<E>
-    where
-        E: StarkField,
-    {
+    fn execute(&self, mut state: CpuState) -> TraceTable<BaseElement> {
         state.regs[self.rs1] = self.rs1_val as u32;
         execute!(&[self], state)
     }
@@ -158,10 +150,7 @@ impl Arbitrary for Jal {
 }
 
 impl Op for Jal {
-    fn execute<E>(&self, state: CpuState) -> TraceTable<E>
-    where
-        E: StarkField,
-    {
+    fn execute(&self, state: CpuState) -> TraceTable<BaseElement> {
         execute!(&[self], state, self.pc)
     }
 
@@ -231,10 +220,7 @@ impl Arbitrary for Jalr {
 }
 
 impl Op for Jalr {
-    fn execute<E>(&self, mut state: CpuState) -> TraceTable<E>
-    where
-        E: StarkField,
-    {
+    fn execute(&self, mut state: CpuState) -> TraceTable<BaseElement> {
         state.regs[self.rs1] = self.rs1_value as u32;
         execute!(&[self], state, self.pc)
     }
@@ -285,10 +271,7 @@ impl Arbitrary for Slti {
 }
 
 impl Op for Slti {
-    fn execute<E>(&self, mut state: CpuState) -> TraceTable<E>
-    where
-        E: StarkField,
-    {
+    fn execute(&self, mut state: CpuState) -> TraceTable<BaseElement> {
         state.regs[self.rs1] = self.rs1_value as u32;
         execute!(&[self], state)
     }

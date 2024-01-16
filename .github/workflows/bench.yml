@@ -8,6 +8,8 @@ jobs:
     runs-on: [self-hosted, bench]
     steps:
       - uses: actions/checkout@v3
+        with:
+          submodules: true
       - uses: dtolnay/rust-toolchain@stable
       - uses: boa-dev/criterion-compare-action@v3
         with:

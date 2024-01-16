@@ -1,0 +1,4 @@
+[submodule "miden-vm"]
+	path = miden-vm
+	url = https://github.com/zeegomo/miden-vm
+	branch = simple-mem-constraints

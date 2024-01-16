@@ -1,5 +1,5 @@
 pub const MAIN_TRACE_WIDTH: usize = 254;
-pub const AUX_TRACE_WIDTH: usize = 0;
+pub const AUX_TRACE_WIDTH: usize = 1;
 // 0-31: registers
 pub const REGISTER_START: usize = 0;
 pub const PC: usize = 32;
