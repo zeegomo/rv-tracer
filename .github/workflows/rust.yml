@@ -23,4 +23,4 @@ jobs:
     - name: Build
       run: cargo build --verbose --manifest-path tracer/Cargo.toml
     - name: Run tests
-      run: cargo test --verbose --manifest-path tracer/Cargo.toml
+      run: cargo test --verbose --manifest-path tracer/Cargo.toml --all-features
