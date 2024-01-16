@@ -162,23 +162,13 @@ impl rvsim::Memory for Memory {
 
         match access {
             MemoryAccess::Load(ptr) | MemoryAccess::Exec(ptr) => {
-                let data = self.buf.get(&addr).copied().unwrap_or(0);
-                self.accesses.push(Access::Load {
-                    addr,
-                    data: data,
-                    clk: self.clk,
-                });
+                let data = self.load(addr);
                 unsafe { *ptr = *(&data as *const u32 as *const T) };
             }
             MemoryAccess::Store(val) => {
                 let mut data: u32 = 0;
                 unsafe { *(&mut data as *mut u32 as *mut T) = val };
-                self.accesses.push(Access::Store {
-                    addr,
-                    data,
-                    clk: self.clk,
-                });
-                self.buf.insert(addr, data);
+                self.store(addr, data);
             }
         }
         true
