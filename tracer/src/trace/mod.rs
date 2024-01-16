@@ -7,6 +7,7 @@ use winterfell::{
 };
 
 const NUM_ALPHA_ELEMS: usize = 9;
+const NUM_RAND_ROWS: usize = 1;
 
 pub struct TraceTable<E: StarkField> {
     inner: winterfell::TraceTable<E>,
@@ -65,8 +66,8 @@ impl Trace for TraceTable<BaseElement> {
         use miden_processor::crypto::RandomCoin;
         use miden_processor::crypto::RpoRandomCoin;
         let mut rng = RpoRandomCoin::new(&[(1u32.into())]);
-        for i in self.length() - 1..self.length() {
-            bus[i] = rng.draw().expect("failed to draw a random value");
+        for row in bus.iter_mut().skip(self.length() - NUM_RAND_ROWS) {
+            *row = rng.draw().expect("failed to draw a random value");
         }
 
         Some(ColMatrix::new(vec![bus]))

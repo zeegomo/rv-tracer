@@ -42,7 +42,7 @@ pub fn generate(config: Air) -> TokenStream {
 
     let c_exprs = constraints
         .iter()
-        .flat_map(|c| c.clone().to_token_stream::<REG_BITS>().into_iter());
+        .flat_map(|c| c.clone().into_token_stream::<REG_BITS>().into_iter());
     let c_degs = constraints
         .iter()
         .flat_map(|c| c.degree::<REG_BITS>().into_iter());

@@ -99,7 +99,7 @@ impl Constraint {
     // It will return:
     // * a single expression for plain constraints
     // * a vector of reg_bits expressions for bitwise constraints and shift constraints.
-    pub fn to_token_stream<const REG_BITS: usize>(self) -> Vec<TokenStream> {
+    pub fn into_token_stream<const REG_BITS: usize>(self) -> Vec<TokenStream> {
         match self {
             Constraint::Plain(c) => vec![c.expr.to_token_stream()],
             Constraint::Bitwise(c) => folders::fold_bitwise::<REG_BITS>(c.expr)

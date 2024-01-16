@@ -28,19 +28,19 @@ pub static PROOF_OPTIONS: Lazy<ProofOptions> = Lazy::new(|| {
 pub fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("loop prove", |b| {
         b.iter(|| {
-            let trace = rv_tracer::sim::sim(Elf32::parse(LOOP_ELF).unwrap());
+            let trace = rv_tracer::executor::exec(&(&Elf32::parse(LOOP_ELF).unwrap()).into());
             prove::<Blake3_192>(trace, black_box(PROOF_OPTIONS.clone()))
         })
     });
 
     c.bench_function("loop verify", |b| {
-        let trace = rv_tracer::sim::sim(Elf32::parse(LOOP_ELF).unwrap());
+        let trace = rv_tracer::executor::exec(&(&Elf32::parse(LOOP_ELF).unwrap()).into());
         let proof = prove::<Blake3_192>(trace, black_box(PROOF_OPTIONS.clone())).unwrap();
         b.iter(|| verify::<Blake3_192>(proof.clone()))
     });
 
     c.bench_function("loop trace generation", |b| {
-        b.iter(|| rv_tracer::sim::sim(Elf32::parse(black_box(LOOP_ELF)).unwrap()));
+        b.iter(|| rv_tracer::executor::exec(&(&Elf32::parse(LOOP_ELF).unwrap()).into()));
     });
 }
 

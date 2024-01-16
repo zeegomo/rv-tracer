@@ -1,5 +1,5 @@
 mod memory;
-mod ops;
+mod cpu;
 use winterfell::{
     math::{fields::f64::BaseElement, ExtensionOf, FieldElement},
     Air, AirContext, Assertion, AuxTraceRandElements, EvaluationFrame, ProofOptions, TraceInfo,
@@ -29,12 +29,12 @@ impl Air for RiscvAir {
         assert_eq!(MAIN_TRACE_WIDTH + AUX_TRACE_WIDTH, trace_info.width());
 
         let mut degrees = Vec::new();
-        degrees.extend(ops::lui::constraint_degrees());
-        degrees.extend(ops::auipc::constraint_degrees());
-        degrees.extend(ops::addi::constraint_degrees());
-        degrees.extend(ops::jal::constraint_degrees());
-        degrees.extend(ops::jalr::constraint_degrees());
-        degrees.extend(ops::slti::constraint_degrees());
+        degrees.extend(cpu::lui::constraint_degrees());
+        degrees.extend(cpu::auipc::constraint_degrees());
+        degrees.extend(cpu::addi::constraint_degrees());
+        degrees.extend(cpu::jal::constraint_degrees());
+        degrees.extend(cpu::jalr::constraint_degrees());
+        degrees.extend(cpu::slti::constraint_degrees());
 
         degrees.extend(memory::get_transition_constraint_degrees());
         // We also need to specify the exact number of assertions we will place against the
@@ -73,13 +73,13 @@ impl Air for RiscvAir {
         result: &mut [E],
     ) {
         let mut index = 0;
-        // ops
-        index += ops::lui::evaluate_transitions(frame, periodic_values, &mut result[index..]);
-        index += ops::auipc::evaluate_transitions(frame, periodic_values, &mut result[index..]);
-        index += ops::addi::evaluate_transitions(frame, periodic_values, &mut result[index..]);
-        index += ops::jal::evaluate_transitions(frame, periodic_values, &mut result[index..]);
-        index += ops::jalr::evaluate_transitions(frame, periodic_values, &mut result[index..]);
-        index += ops::slti::evaluate_transitions(frame, periodic_values, &mut result[index..]);
+        // cpu
+        index += cpu::lui::evaluate_transitions(frame, periodic_values, &mut result[index..]);
+        index += cpu::auipc::evaluate_transitions(frame, periodic_values, &mut result[index..]);
+        index += cpu::addi::evaluate_transitions(frame, periodic_values, &mut result[index..]);
+        index += cpu::jal::evaluate_transitions(frame, periodic_values, &mut result[index..]);
+        index += cpu::jalr::evaluate_transitions(frame, periodic_values, &mut result[index..]);
+        index += cpu::slti::evaluate_transitions(frame, periodic_values, &mut result[index..]);
         // memory
         index += memory::evaluate_transitions::<E>(frame, periodic_values, &mut result[index..]);
         assert_eq!(index, self.context().num_main_transition_constraints());
