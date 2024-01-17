@@ -8,10 +8,8 @@ pub const CYCLE: usize = 0;
 pub const BODY: usize = 1;
 // 1 when we are loading the ELF in memory and 0 otherwise
 pub const LOADING: usize = 2;
-// TODO: can we remove this?
-pub const READING_PC: usize = 3;
-pub const PC: usize = 4;
-pub const INSN: usize = 5;
+pub const PC: usize = 3;
+pub const INSN: usize = 4;
 // 6-37: instruction at pc
 pub const INS_END: usize = INSN + 1;
 pub const UIMM_END: usize = INS_END;
