@@ -75,7 +75,7 @@ pub fn generate(config: Air) -> TokenStream {
                     let next = frame.next();
                     let mut index = 0;
 
-                    let body_flag = current[BODY];
+                    let body_flag = next[BODY];
                     let funct3_flag = funct3_flag(&current[FUNCT3_END..FUNCT3_END + 3]);
                     let op_flag = op_flag(&current[OPCODE_END..OPCODE_END + 7]);
 

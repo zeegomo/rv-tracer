@@ -6,7 +6,7 @@ use rand::Rng;
 use rvsim::{Clock, CpuState, Interp, Op, SimpleClock};
 use trace_defs::{
     BODY, CPU_TRACE_WIDTH, CYCLE, H_0, H_1, H_2, INSN, INS_END, LOADING, PC, RD_BITS_END,
-    READING_PC, RS1_BITS_END, RS2_BITS_END,
+    RS1_BITS_END, RS2_BITS_END,
 };
 use winterfell::math::FieldElement;
 
@@ -24,7 +24,6 @@ impl Cpu {
     pub fn current_trace(&self, memory: &Memory) -> [Felem; CPU_TRACE_WIDTH] {
         let mut trace = [0u32.into(); CPU_TRACE_WIDTH];
         trace[PC] = signed(self.state.pc);
-        trace[READING_PC] = ONE;
         let insn = self.insn_at_pc(memory);
         Self::save_u32_to_bits(&mut trace[INS_END..], insn);
         trace[INSN] = insn.into();
@@ -175,7 +174,6 @@ impl Cpu {
             row[PC] = addr.into();
             row[INSN] = byte.into();
             row[CYCLE] = memory.clock().into();
-            row[READING_PC] = ONE;
             row[LOADING] = ONE;
             for (col, val) in trace.iter_mut().zip(row) {
                 col.push(val)
@@ -206,10 +204,7 @@ impl Cpu {
 
         for (i, column) in trace.iter_mut().enumerate() {
             let pad = trace_len - column.len();
-            if i == BODY || i == LOADING || i == READING_PC {
-                if i != READING_PC {
-                    *column.last_mut().unwrap() = Felem::ZERO;
-                }
+            if i == BODY || i == LOADING {
                 column.extend(vec![Felem::ZERO; pad]);
             } else {
                 let mut bytes = vec![0u32; pad];
