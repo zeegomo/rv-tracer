@@ -1,4 +1,4 @@
-pub const CPU_TRACE_WIDTH: usize = 150;
+pub const CPU_TRACE_WIDTH: usize = H_5+1;
 pub const MEMORY_TRACE_WIDTH: usize = CHIPLETS_WIDTH;
 pub const MAIN_TRACE_WIDTH: usize = CHIPLETS_WIDTH + CPU_TRACE_WIDTH;
 pub const AUX_TRACE_WIDTH: usize = 1;
