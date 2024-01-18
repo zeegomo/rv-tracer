@@ -12,7 +12,7 @@ use std::fmt::Debug;
 use trace_defs::MAIN_TRACE_WIDTH;
 use winterfell::{
     math::{fields::f64::BaseElement, FieldElement},
-    FieldExtension, ProofOptions,
+    FieldExtension, ProofOptions, Trace as _,
 };
 
 const NUM_QUERIES: usize = 10;
@@ -36,31 +36,67 @@ pub static PROOF_OPTIONS: Lazy<ProofOptions> = Lazy::new(|| {
 
 const OP_ADDR: u32 = 0x200;
 
+// Generete a RISC-V program that loads the given state into the registers
+fn load_state(state: [u32; 32]) -> Vec<u8> {
+    state
+        .iter()
+        .enumerate()
+        .flat_map(|(i, &v)| {
+            // to load a 32bit value into a register we need to set the upper 20 bits
+            // with lui and the lower 12 bits with addi
+            let rd = i;
+            let u_imm = v & 0xfffff000;
+            let i_imm = v & 0xfff;
+            ops::Lui {
+                rd,
+                uimm: u_imm as i32,
+            }
+            .to_op()
+            .to_le_bytes()
+            .into_iter()
+            .chain(
+                ops::Addi {
+                    rd,
+                    rs1: i,
+                    imm: i_imm as i32,
+                    rs1_val: 0,
+                }
+                .to_op()
+                .to_le_bytes()
+                .into_iter(),
+            )
+        })
+        .collect::<Vec<_>>()
+}
+
 macro_rules! execute {
     ($ops:expr, $state:expr) => {{
-        let mut program = Program::new(
+        let program = Program::new(
             OP_ADDR,
             vec![(
                 OP_ADDR,
-                $ops.iter()
-                    .flat_map(|o| o.to_op().to_le_bytes().into_iter())
+                load_state($state.regs)
+                    .into_iter()
+                    .chain(
+                        $ops.iter()
+                            .flat_map(|o| o.to_op().to_le_bytes().into_iter()),
+                    )
                     .collect::<Vec<_>>(),
             )],
         );
-        program.set_starting_state($state.to_rvsim_state(OP_ADDR));
         exec(&program)
     }};
     ($ops:expr, $state:expr, $pc:expr) => {{
-        let mut program = Program::new(
-            $pc,
-            vec![(
-                $pc,
+        let pc = ($pc) - 64 * 4;
+        let ops = load_state($state.regs)
+            .into_iter()
+            .chain(
                 $ops.iter()
-                    .flat_map(|o| o.to_op().to_le_bytes().into_iter())
-                    .collect::<Vec<_>>(),
-            )],
-        );
-        program.set_starting_state($state.to_rvsim_state($pc));
+                    .flat_map(|o| o.to_op().to_le_bytes().into_iter()),
+            )
+            .collect::<Vec<_>>();
+
+        let program = Program::new(pc, vec![(pc, ops)]);
         exec(&program)
     }};
 }
@@ -89,14 +125,6 @@ impl<T: Op> Op for &T {
 #[derive(Debug, Clone)]
 pub struct CpuState {
     pub regs: [u32; 32],
-}
-
-impl CpuState {
-    fn to_rvsim_state(&self, pc: u32) -> rvsim::CpuState {
-        let mut state = rvsim::CpuState::new(pc);
-        state.x = self.regs;
-        state
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -129,6 +157,16 @@ impl<O: Op> Trace<O> {
         let state: CpuState = CpuState { regs: [0; 32] };
         self.op.execute(state)
     }
+
+    #[allow(dead_code)]
+    pub fn op_start() -> usize {
+        // 64 additional operations are used to load the initial state
+        // into registers, and they in turn require 64 addionital cycles
+        // to be loaded into memory first
+        64 // load the additional operations into memory
+        + 1 // load the test operation into memory
+        + 64 // execute the additional operations to set registers
+    }
 }
 
 impl<const N: usize, O: Op> Trace<[O; N]> {
@@ -149,6 +187,18 @@ pub struct PerturbedTrace<O: Op, P: Field> {
     next: [BaseElement; MAIN_TRACE_WIDTH],
 }
 
+impl<O: Op, P: Field + 'static> PerturbedTrace<O, P> {
+    #[allow(dead_code)]
+    pub fn op_start() -> usize {
+        // 64 additional operations are used to load the initial state
+        // into registers, and they in turn require 64 addionital cycles
+        // to be loaded into memory first
+        64 // load the additional operations into memory
+    + 1 // load the test operation into memory
+    + 64 // execute the additional operations to set registers
+    }
+}
+
 impl<O: Op + Arbitrary + 'static, P: Field + Clone + 'static> Arbitrary for PerturbedTrace<O, P> {
     fn arbitrary(g: &mut Gen) -> Self {
         // FIXME: since we don't have constraints for rd = 0 any transition would be valid
@@ -159,15 +209,18 @@ impl<O: Op + Arbitrary + 'static, P: Field + Clone + 'static> Arbitrary for Pert
         }
         let state = CpuState { regs: [0; 32] };
         let mut table = op.execute(state.clone());
-
+        assert!(
+            table.length() > (Self::op_start() + 1).next_power_of_two(),
+            "table too short"
+        );
         let mut current = [BaseElement::ZERO; MAIN_TRACE_WIDTH];
         let mut next = [BaseElement::ZERO; MAIN_TRACE_WIDTH];
-        table.read_row_into(1, &mut current);
-        table.read_row_into(2, &mut next);
+        table.read_row_into(Self::op_start(), &mut current);
+        table.read_row_into(Self::op_start() + 1, &mut next);
         P::perturb(&mut current, &mut next, g);
+        table.update_row(Self::op_start(), &current);
+        table.update_row(Self::op_start() + 1, &next);
 
-        table.update_row(1, &current);
-        table.update_row(2, &next);
         Self {
             table,
             op,
@@ -182,8 +235,8 @@ impl<O: Op + Arbitrary + 'static, P: Field + Clone + 'static> Arbitrary for Pert
 impl<O: Op, P: Field + Clone + 'static> Clone for PerturbedTrace<O, P> {
     fn clone(&self) -> Self {
         let mut table = self.op.execute(self.state.clone());
-        table.update_row(0, &self.current);
-        table.update_row(1, &self.next);
+        table.update_row(Self::op_start(), &self.current);
+        table.update_row(Self::op_start() + 1, &self.next);
         Self {
             table,
             op: self.op.clone(),
@@ -197,11 +250,16 @@ impl<O: Op, P: Field + Clone + 'static> Clone for PerturbedTrace<O, P> {
 
 impl<O: Op, P: Field + Clone + 'static> core::fmt::Debug for PerturbedTrace<O, P> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> Result<(), core::fmt::Error> {
-        write!(
-            f,
-            "op: {:?}, state: {:?}, current: {:?}, next: {:?}",
-            self.op, self.state, self.current, self.next
-        )
+        write!(f, "op: {:?}, state: {:?}", self.op, self.state)?;
+        writeln!(f, "\ncurrent:")?;
+        for val in self.current.iter() {
+            write!(f, "{} ", val)?;
+        }
+        writeln!(f, "\nnext:")?;
+        for val in self.next.iter() {
+            write!(f, "{} ", val)?;
+        }
+        Ok(())
     }
 }
 

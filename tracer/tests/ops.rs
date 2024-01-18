@@ -15,30 +15,28 @@ macro_rules! generate_tests {
             quickcheck::quickcheck! {
                 #[allow(non_snake_case)]
                 fn [<test_ $op _ok>](trace: Trace<$op>) -> bool {
+                    let row = <Trace<$op>>::op_start();
                     let table = trace.table();
                     let trace_info = table.get_info();
                     let air = rv_tracer::air::RiscvAir::new(trace_info, (), PROOF_OPTIONS.clone());
                     let mut results = vec![BaseElement::ZERO; air.context().num_transition_constraints()];
                     let mut frame = EvaluationFrame::new(MAIN_TRACE_WIDTH);
-                    table.read_main_frame(1, &mut frame);
+                    table.read_main_frame(row, &mut frame);
                     air.evaluate_transition(&frame, &[], &mut results);
                     results == vec![BaseElement::ZERO; air.context().num_transition_constraints()]
                 }
 
-
                 $(
                     #[allow(non_snake_case)]
                     fn [<test_ $op _ $perturb _neg>](trace: PerturbedTrace<$op, $perturb>) -> bool {
+                        let row = <PerturbedTrace<$op, $perturb>>::op_start();
                         let table = trace.table;
                         let trace_info = table.get_info();
                         let air = rv_tracer::air::RiscvAir::new(trace_info, (), PROOF_OPTIONS.clone());
                         let mut results = vec![BaseElement::ZERO; air.context().num_transition_constraints()];
                         let mut frame = EvaluationFrame::new(MAIN_TRACE_WIDTH);
-                        // the first step is for loading
-                        println!("perturb: {:?}", table.get_info());
-                        table.read_main_frame(1, &mut frame);
+                        table.read_main_frame(row, &mut frame);
                         air.evaluate_transition(&frame, &[], &mut results);
-
                         results != vec![BaseElement::ZERO; air.context().num_transition_constraints()]
                     }
                 )*

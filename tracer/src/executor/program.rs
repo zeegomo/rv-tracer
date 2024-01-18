@@ -1,22 +1,13 @@
 use rvsim::elf::{self, Elf32};
-#[cfg(feature = "integration-test")]
-use rvsim::CpuState;
 
 pub struct Program {
     entry: u32,
     segments: Vec<(u32, Vec<u8>)>,
-    #[cfg(feature = "integration-test")]
-    starting_state: CpuState,
 }
 
 impl Program {
     pub fn new(entry: u32, segments: Vec<(u32, Vec<u8>)>) -> Self {
-        Self {
-            entry,
-            segments,
-            #[cfg(feature = "integration-test")]
-            starting_state: CpuState::new(entry),
-        }
+        Self { entry, segments }
     }
 
     pub fn entrypoint(&self) -> u32 {
@@ -25,16 +16,6 @@ impl Program {
 
     pub fn segments(&self) -> &[(u32, Vec<u8>)] {
         &self.segments
-    }
-
-    #[cfg(feature = "integration-test")]
-    pub fn set_starting_state(&mut self, state: CpuState) {
-        self.starting_state = state;
-    }
-
-    #[cfg(feature = "integration-test")]
-    pub fn starting_state(&self) -> CpuState {
-        self.starting_state.clone()
     }
 }
 
@@ -59,8 +40,6 @@ impl<'a> From<&Elf32<'a>> for Program {
         Self {
             entry: elf.header.entry,
             segments,
-            #[cfg(feature = "integration-test")]
-            starting_state: CpuState::new(elf.header.entry),
         }
     }
 }

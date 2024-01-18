@@ -77,10 +77,10 @@ impl From<Auipc> for rvsim::Op {
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Addi {
-    rd: usize,
-    rs1: usize,
-    rs1_val: i32,
-    imm: i32,
+    pub rd: usize,
+    pub rs1: usize,
+    pub rs1_val: i32,
+    pub imm: i32,
 }
 
 impl Arbitrary for Addi {
@@ -199,6 +199,9 @@ impl Arbitrary for Jalr {
         // we should accept jumps to addresses with address % 4 = {0, 1}, but the
         // current implementation does not seem happy with it
         while imm.wrapping_add(rs1_value) == pc as i32
+            // avoid jumping back to loading instructions to avoid a loop…
+            || ((pc - 64 * 4) <= imm.wrapping_add(rs1_value) as u32
+                && ((imm.wrapping_add(rs1_value) as u32) < pc))
             || imm.wrapping_add(rs1_value) as u32 % 4 != 0
         {
             rs1_value = i32::arbitrary(g);
@@ -356,6 +359,9 @@ impl quickcheck::Arbitrary for Pc {
         let mut pc = i32::arbitrary(g);
         // pc has to be 4-bytes aligned
         pc = pc - pc % 4;
+        // we need to make some space for the operations loading
+        // registers state
+        pc = core::cmp::max(pc, 64 * 4);
         Self(pc as u32)
     }
 }

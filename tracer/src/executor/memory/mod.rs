@@ -8,14 +8,87 @@ use miden_processor::{
 };
 use rvsim::MemoryAccess;
 use std::collections::BTreeMap;
-use winterfell::math::fields::f64::BaseElement;
+use winterfell::math::{fields::f64::BaseElement, FieldElement};
 
-const SYS_CTX: u32 = 0x0;
+const MEM_CTX: u32 = 0x0;
+const REG_CTX: u32 = 0x1;
 pub const MEMORY_TRACE_WIDTH: usize = CHIPLETS_WIDTH;
 const NUM_RAND_ROWS: usize = 1;
 
-pub struct Memory {
+// Both for the register file and the memory, we need to support up to 3 accesses to the same region of memory
+// in the same clock cycle.
+// However, the current memory implementation only allows to access each address once per clock cycle.
+// To overcome this limitation, we will overclock the memory by a factor of 4, thus allowing 4 accesses per cycle.
+// This does not change the efficiency or semantics of the memory, but requires a bit more consideration when building
+// the bus trace.
+// In particular, all requests will appear in the bus at the original cycle, but lookups will be calculated using
+// the 'overclocked' cycle as specified below for each access.
+const OVERCLOCK: u32 = 4;
+
+/// The register file is implemented using a special region in memory, and thus
+/// reuse the same constrainst.
+/// This implementation assumes exactly 2 reads and 1 store are performed at each cycle.
+/// Clocks for lookups are then calculated as follows:
+/// rs1: bus_clock * OVERCLOCK
+/// rs2: bus_clock * OVERCLOCK + 1
+/// rd : bus_clock * OVERCLOCK + 2
+pub struct RegisterFile {
+    regs: [u32; 32],
+    accesses: Vec<Access>,
     clk: u32,
+    loads: u32,
+    stores: u32,
+}
+
+impl RegisterFile {
+    pub fn new() -> Self {
+        Self {
+            regs: [0; 32],
+            accesses: Vec::new(),
+            clk: 0,
+            loads: 0,
+            stores: 0,
+        }
+    }
+
+    pub fn advance_clk(&mut self) {
+        self.clk += 1;
+        self.loads = 0;
+        self.stores = 0;
+    }
+
+    // Load registers value, this is expected to happen at the end of the clock cycle
+    pub fn load(&mut self, reg: u32) -> u32 {
+        assert_eq!(self.stores, 0, "Loading after a store in the same cycle");
+        assert!(self.loads < 2, "Only 2 loads are supported for each cycle");
+        self.accesses.push(Access::Load {
+            addr: reg,
+            mem_clk: self.clk * OVERCLOCK + self.loads,
+            data: self.regs[reg as usize],
+            ctx: REG_CTX,
+        });
+        self.loads += 1;
+        self.regs[reg as usize]
+    }
+
+    // Store register value, this is expected to happen at the start of the clock cycle
+    pub fn store(&mut self, reg: u32, val: u32) {
+        assert_eq!(self.stores, 0, "Already performed a store in this cycle");
+        assert_eq!(self.loads, 2, "Storing before 2 loeads in the same cycle",);
+        self.accesses.push(Access::Store {
+            addr: reg,
+            mem_clk: self.clk * OVERCLOCK + 2,
+            data: val,
+            ctx: REG_CTX,
+        });
+        self.stores += 1;
+        self.regs[reg as usize] = val;
+    }
+}
+
+pub struct Memory {
+    register_file: RegisterFile,
+    bus_clk: u32,
     // TODO: the memory api of rvsim are a mess, especially to interoperate with miden.
     // We will implement the memory locally and forward all accesses at the end to the miden backend.
     buf: BTreeMap<u32, u32>,
@@ -24,31 +97,55 @@ pub struct Memory {
 
 #[derive(Clone, Copy, Debug)]
 enum Access {
-    Load { addr: u32, data: u32, clk: u32 },
-    Store { addr: u32, data: u32, clk: u32 },
+    Load {
+        addr: u32,
+        data: u32,
+        mem_clk: u32,
+        ctx: u32,
+    },
+    Store {
+        addr: u32,
+        data: u32,
+        mem_clk: u32,
+        ctx: u32,
+    },
+}
+
+impl Access {
+    fn mem_clk(&self) -> u32 {
+        match self {
+            Access::Load { mem_clk, .. } | Access::Store { mem_clk, .. } => *mem_clk,
+        }
+    }
 }
 
 impl Memory {
     pub fn new() -> Self {
         Self {
-            clk: 0,
+            bus_clk: 0,
             buf: BTreeMap::new(),
             accesses: Vec::new(),
+            register_file: RegisterFile::new(),
         }
     }
 
-    pub fn clock(&self) -> u32 {
-        self.clk
+    pub fn bus_clock(&self) -> u32 {
+        self.bus_clk
     }
 
-    /// Increment the internal clock
-    pub fn advance(&mut self) {
-        self.clk += 1;
+    /// Increment the cpu clock
+    pub fn advance_bus_clk(&mut self) {
+        self.bus_clk += 1;
+        self.register_file.advance_clk();
     }
 
     /// access memory without enforcing constraints
     pub fn get(&self, addr: u32) -> u32 {
         self.buf.get(&addr).copied().unwrap_or(0)
+    }
+
+    pub fn register_file(&mut self) -> &mut RegisterFile {
+        &mut self.register_file
     }
 
     /// Read a value from memory
@@ -57,7 +154,8 @@ impl Memory {
         self.accesses.push(Access::Load {
             addr,
             data,
-            clk: self.clk,
+            mem_clk: self.bus_clk * OVERCLOCK,
+            ctx: MEM_CTX,
         });
         data
     }
@@ -68,7 +166,8 @@ impl Memory {
         self.accesses.push(Access::Store {
             addr,
             data,
-            clk: self.clk,
+            mem_clk: self.bus_clk * OVERCLOCK,
+            ctx: MEM_CTX,
         });
     }
 
@@ -77,24 +176,43 @@ impl Memory {
         // wrapper makes it convenient to use it.
         // TODO: extract only the parts that we need
         let mut chiplets = Chiplets::new(Default::default());
+        let mut accesses = self.accesses.clone();
+        accesses.extend(self.register_file.accesses.clone());
+        accesses.sort_by_key(|a| a.mem_clk());
         let mut chiplet_clk = 0;
-        for access in self.accesses.iter().copied() {
+        for access in accesses.iter().copied() {
             match access {
-                Access::Load { addr, data, clk } => {
-                    assert!(chiplet_clk <= clk);
-                    while chiplet_clk < clk {
+                Access::Load {
+                    addr,
+                    data,
+                    mem_clk,
+                    ctx,
+                } => {
+                    let bus_clk = mem_clk / OVERCLOCK;
+                    assert!(chiplet_clk <= mem_clk);
+                    while chiplet_clk < mem_clk {
                         chiplets.advance_clock();
                         chiplet_clk += 1;
                     }
-                    assert_eq!(chiplets.read_mem(SYS_CTX, addr)[0].as_int() as u32, data);
+
+                    assert_eq!(
+                        chiplets.read_mem(ctx, addr, bus_clk)[0].as_int() as u32,
+                        data
+                    );
                 }
-                Access::Store { addr, data, clk } => {
-                    assert!(chiplet_clk <= clk);
-                    while chiplet_clk < clk {
+                Access::Store {
+                    addr,
+                    data,
+                    mem_clk,
+                    ctx,
+                } => {
+                    let bus_clk = mem_clk / OVERCLOCK;
+                    assert!(chiplet_clk <= mem_clk);
+                    while chiplet_clk < mem_clk {
                         chiplets.advance_clock();
                         chiplet_clk += 1;
                     }
-                    chiplets.write_mem_element(SYS_CTX, addr, data.into());
+                    chiplets.write_mem_element(ctx, addr, data.into(), bus_clk);
                 }
             }
         }
@@ -105,8 +223,8 @@ impl Memory {
     ///
     /// The layout of the memory access trace is shown below.
     ///
-    ///   s0   s1     0   addr   clk   v0    0    0    0   d0   d1   d_inv
-    /// ├────┴────┴─────┴──────┴─────┴────┴────┴────┴────┴────┴────┴───────┤
+    ///   s0   s1    ctx   addr   clk   v0    0    0    0   d0   d1   d_inv
+    /// ├────┴────┴──────┴──────┴─────┴────┴────┴────┴────┴────┴────┴───────┤
     ///
     /// In the above, the meaning of the columns is as follows:
     /// - `s0` is a selector column used to identify whether the memory access is a read or a write. A
@@ -136,10 +254,18 @@ impl Memory {
         trace_len: usize,
     ) -> ([Vec<BaseElement>; MEMORY_TRACE_WIDTH], AuxTraceBuilder) {
         assert!(self.trace_len() <= trace_len);
-        let trace = self
+        let mut trace = self
             .build_chiplet_trace()
             .into_trace(trace_len, NUM_RAND_ROWS);
 
+        // use the column for v1 to signal whether this is a real memory op or not
+        const MEMORY_IS_OP: usize = 9;
+        assert!(trace.trace[MEMORY_IS_OP]
+            .iter()
+            .all(|v| *v == BaseElement::ZERO));
+        for row in trace.trace[MEMORY_IS_OP][..self.trace_len() - NUM_RAND_ROWS].iter_mut() {
+            *row = BaseElement::ONE;
+        }
         (trace.trace, trace.aux_builder)
     }
 
