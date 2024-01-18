@@ -84,3 +84,110 @@ generate_tests!(Jal, RdBits, Pc);
 generate_tests!(Jalr, RdBits, Pc, Rs1Bits);
 generate_tests!(Slti, RdBits, Rs1Bits, Imm);
 generate_batched!(Slti);
+
+#[test]
+fn carlos() {
+    let trace = Trace {
+        op: [
+            Addi {
+                rd: 8,
+                rs1: 17,
+                rs1_val: 1656034299,
+                imm: 49,
+            },
+            Addi {
+                rd: 10,
+                rs1: 27,
+                rs1_val: -2021370797,
+                imm: 734,
+            },
+            Addi {
+                rd: 30,
+                rs1: 22,
+                rs1_val: 615237333,
+                imm: 168,
+            },
+            Addi {
+                rd: 23,
+                rs1: 26,
+                rs1_val: -1470919194,
+                imm: -1659,
+            },
+            Addi {
+                rd: 28,
+                rs1: 2,
+                rs1_val: 1164001425,
+                imm: -2048,
+            },
+            Addi {
+                rd: 27,
+                rs1: 2,
+                rs1_val: -82742876,
+                imm: 530,
+            },
+            Addi {
+                rd: 0,
+                rs1: 3,
+                rs1_val: 1586036761,
+                imm: 1101,
+            },
+            Addi {
+                rd: 24,
+                rs1: 7,
+                rs1_val: 2053606410,
+                imm: -154,
+            },
+            Addi {
+                rd: 28,
+                rs1: 11,
+                rs1_val: -1078523207,
+                imm: -1819,
+            },
+            Addi {
+                rd: 18,
+                rs1: 29,
+                rs1_val: 1616541199,
+                imm: 2047,
+            },
+            Addi {
+                rd: 3,
+                rs1: 30,
+                rs1_val: -1397144209,
+                imm: -1028,
+            },
+            Addi {
+                rd: 23,
+                rs1: 13,
+                rs1_val: 154806733,
+                imm: 526,
+            },
+            Addi {
+                rd: 17,
+                rs1: 3,
+                rs1_val: -2125874979,
+                imm: 493,
+            },
+            Addi {
+                rd: 9,
+                rs1: 1,
+                rs1_val: 1375066508,
+                imm: -215,
+            },
+            Addi {
+                rd: 15,
+                rs1: 27,
+                rs1_val: -209546870,
+                imm: -405,
+            },
+            Addi {
+                rd: 24,
+                rs1: 13,
+                rs1_val: 218720441,
+                imm: 855,
+            },
+        ],
+    };
+
+    let proof = prove::<Blake3_192>(trace.table(), PROOF_OPTIONS.clone());
+    verify::<Blake3_192>(proof.unwrap()).is_ok();
+}

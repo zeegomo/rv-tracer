@@ -77,10 +77,10 @@ impl From<Auipc> for rvsim::Op {
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Addi {
-    rd: usize,
-    rs1: usize,
-    rs1_val: i32,
-    imm: i32,
+    pub rd: usize,
+    pub rs1: usize,
+    pub rs1_val: i32,
+    pub imm: i32,
 }
 
 impl Arbitrary for Addi {

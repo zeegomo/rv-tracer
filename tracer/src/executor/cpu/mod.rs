@@ -38,6 +38,9 @@ impl Cpu {
         #[cfg(feature = "integration-test")]
         {
             cpu.state = program.starting_state();
+            for (i, reg) in cpu.state.x.iter().enumerate() {
+                memory.register_file().put(i as u32, *reg);
+            }
         }
         cpu.run_inner(memory);
         cpu
@@ -47,14 +50,18 @@ impl Cpu {
         let mut rd_idx = 0;
         let mut current_trace = self.current_trace(memory);
         loop {
-            // Save current state to trace
-            let rs1 = self.state.x[self.next_rs1(memory) as usize];
-            let rs2 = self.state.x[self.next_rs2(memory) as usize];
-            let rd = self.state.x[rd_idx];
+            // let rd = self.state.x[rd_idx];
+            // load source registers from memory
+            let rs1 = self.next_rs1(memory);
+            let rs1 = memory.register_file().load(rs1);
+            let rs2 = self.next_rs2(memory);
+            let rs2 = memory.register_file().load(rs2);
+
             rd_idx = self.next_rd(memory) as usize;
+            // save register contentes to trace
             Self::save_u32_to_bits(&mut current_trace[RS1_BITS_END..], rs1);
             Self::save_u32_to_bits(&mut current_trace[RS2_BITS_END..], rs2);
-            Self::save_u32_to_bits(&mut current_trace[RD_BITS_END..], rd);
+            // Self::save_u32_to_bits(&mut current_trace[RD_BITS_END..], rd);
 
             // Add current row to trace
             for (col, val) in self.trace.iter_mut().zip(current_trace) {
@@ -116,7 +123,12 @@ impl Cpu {
                     break;
                 }
             }
-            memory.advance();
+
+            // save previous destination register to memory
+            let rd = self.state.x[rd_idx];
+            memory.register_file().store(rd_idx as u32, rd);
+            memory.advance_bus_clk();
+            Self::save_u32_to_bits(&mut current_trace[RD_BITS_END..], rd);
         }
     }
 
@@ -168,22 +180,24 @@ impl Cpu {
         });
 
         // TODO: we can make this more efficient as bytes are likely contiguous
+
         for (addr, byte) in bytes {
             memory.store(addr, byte);
             let mut row = [ZERO; CPU_TRACE_WIDTH];
             row[PC] = addr.into();
             row[INSN] = byte.into();
-            row[CYCLE] = memory.clock().into();
+            row[CYCLE] = memory.bus_clock().into();
             row[LOADING] = ONE;
             for (col, val) in trace.iter_mut().zip(row) {
                 col.push(val)
             }
-            memory.advance();
+
+            memory.advance_bus_clk();
         }
 
         let state = CpuState::new(program.entrypoint());
         let mut clock = SimpleClock::new();
-        clock.instret = memory.clock() as u64;
+        clock.instret = memory.bus_clock() as u64;
 
         Self {
             state,
