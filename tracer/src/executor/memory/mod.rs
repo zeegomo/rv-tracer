@@ -8,7 +8,7 @@ use miden_processor::{
 };
 use rvsim::MemoryAccess;
 use std::collections::BTreeMap;
-use winterfell::math::fields::f64::BaseElement;
+use winterfell::math::{fields::f64::BaseElement, FieldElement};
 
 const MEM_CTX: u32 = 0x0;
 const REG_CTX: u32 = 0x1;
@@ -61,12 +61,12 @@ impl RegisterFile {
     pub fn load(&mut self, reg: u32) -> u32 {
         assert_eq!(self.stores, 0, "Loading after a store in the same cycle");
         assert!(self.loads < 2, "Only 2 loads are supported for each cycle");
-        // self.accesses.push(Access::Load {
-        //     addr: reg,
-        //     mem_clk: self.clk * OVERCLOCK + self.loads,
-        //     data: self.regs[reg as usize],
-        //     ctx: REG_CTX,
-        // });
+        self.accesses.push(Access::Load {
+            addr: reg,
+            mem_clk: self.clk * OVERCLOCK + self.loads,
+            data: self.regs[reg as usize],
+            ctx: REG_CTX,
+        });
         self.loads += 1;
         self.regs[reg as usize]
     }
@@ -82,12 +82,6 @@ impl RegisterFile {
             ctx: REG_CTX,
         });
         self.stores += 1;
-        self.regs[reg as usize] = val;
-    }
-
-    #[cfg(feature = "integration-test")]
-    /// Store a value without enforcing constraints
-    pub fn put(&mut self, reg: u32, val: u32) {
         self.regs[reg as usize] = val;
     }
 }
@@ -185,7 +179,6 @@ impl Memory {
         let mut accesses = self.accesses.clone();
         accesses.extend(self.register_file.accesses.clone());
         accesses.sort_by_key(|a| a.mem_clk());
-        println!("accesses: {:?}", accesses);
         let mut chiplet_clk = 0;
         for access in accesses.iter().copied() {
             match access {
@@ -261,10 +254,18 @@ impl Memory {
         trace_len: usize,
     ) -> ([Vec<BaseElement>; MEMORY_TRACE_WIDTH], AuxTraceBuilder) {
         assert!(self.trace_len() <= trace_len);
-        let trace = self
+        let mut trace = self
             .build_chiplet_trace()
             .into_trace(trace_len, NUM_RAND_ROWS);
 
+        // use the column for v1 to signal whether this is a real memory op or not
+        const MEMORY_IS_OP: usize = 9;
+        assert!(trace.trace[MEMORY_IS_OP]
+            .iter()
+            .all(|v| *v == BaseElement::ZERO));
+        for row in trace.trace[MEMORY_IS_OP][..self.trace_len() - NUM_RAND_ROWS].iter_mut() {
+            *row = BaseElement::ONE;
+        }
         (trace.trace, trace.aux_builder)
     }
 

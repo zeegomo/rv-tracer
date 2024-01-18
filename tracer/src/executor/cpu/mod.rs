@@ -35,33 +35,23 @@ impl Cpu {
 
     pub fn run(program: &Program, memory: &mut Memory) -> Self {
         let mut cpu = Self::load_program(program, memory);
-        #[cfg(feature = "integration-test")]
-        {
-            cpu.state = program.starting_state();
-            for (i, reg) in cpu.state.x.iter().enumerate() {
-                memory.register_file().put(i as u32, *reg);
-            }
-        }
         cpu.run_inner(memory);
         cpu
     }
 
     fn run_inner(&mut self, memory: &mut Memory) {
-        let mut rd_idx = 0;
         let mut current_trace = self.current_trace(memory);
         loop {
-            // let rd = self.state.x[rd_idx];
             // load source registers from memory
             let rs1 = self.next_rs1(memory);
             let rs1 = memory.register_file().load(rs1);
             let rs2 = self.next_rs2(memory);
             let rs2 = memory.register_file().load(rs2);
 
-            rd_idx = self.next_rd(memory) as usize;
+            let rd_idx = self.next_rd(memory) as usize;
             // save register contentes to trace
             Self::save_u32_to_bits(&mut current_trace[RS1_BITS_END..], rs1);
             Self::save_u32_to_bits(&mut current_trace[RS2_BITS_END..], rs2);
-            // Self::save_u32_to_bits(&mut current_trace[RD_BITS_END..], rd);
 
             // Add current row to trace
             for (col, val) in self.trace.iter_mut().zip(current_trace) {
@@ -169,7 +159,7 @@ impl Cpu {
     pub fn load_program(program: &Program, memory: &mut Memory) -> Self {
         let mut trace: [Vec<Felem>; CPU_TRACE_WIDTH] = core::array::from_fn(|_| Vec::new());
 
-        let bytes = program.segments().iter().flat_map(|(addr, segment)| {
+        let words = program.segments().iter().flat_map(|(addr, segment)| {
             assert!(segment.len() % 4 == 0);
             segment.chunks_exact(4).enumerate().map(|(i, bytes)| {
                 (
@@ -181,11 +171,11 @@ impl Cpu {
 
         // TODO: we can make this more efficient as bytes are likely contiguous
 
-        for (addr, byte) in bytes {
-            memory.store(addr, byte);
+        for (addr, word) in words {
+            memory.store(addr, word);
             let mut row = [ZERO; CPU_TRACE_WIDTH];
             row[PC] = addr.into();
-            row[INSN] = byte.into();
+            row[INSN] = word.into();
             row[CYCLE] = memory.bus_clock().into();
             row[LOADING] = ONE;
             for (col, val) in trace.iter_mut().zip(row) {
