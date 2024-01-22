@@ -1,4 +1,4 @@
-use crate::{air::RiscvAir, trace::TraceTable};
+use crate::{air::RiscvAir, executor::Program, trace::TraceTable};
 use core::marker::PhantomData;
 use winterfell::{
     crypto::{DefaultRandomCoin, ElementHasher},
@@ -8,14 +8,16 @@ use winterfell::{
 
 pub struct RiscvProver<H: ElementHasher> {
     options: ProofOptions,
+    program: Program,
     _hasher: PhantomData<H>,
 }
 
 impl<H: ElementHasher> RiscvProver<H> {
-    pub fn new(options: ProofOptions) -> Self {
+    pub fn new(options: ProofOptions, program: Program) -> Self {
         Self {
             options,
             _hasher: PhantomData,
+            program,
         }
     }
 }
@@ -31,6 +33,7 @@ where
     type RandomCoin = DefaultRandomCoin<Self::HashFn>;
 
     fn get_pub_inputs(&self, _trace: &Self::Trace) -> <Self::Air as winterfell::Air>::PublicInputs {
+        self.program.clone()
     }
 
     fn options(&self) -> &ProofOptions {

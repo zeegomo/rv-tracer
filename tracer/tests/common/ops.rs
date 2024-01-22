@@ -18,7 +18,11 @@ impl Arbitrary for Lui {
 
 impl Op for Lui {
     fn execute(&self, state: CpuState) -> TraceTable<BaseElement> {
-        execute!(&[self], state)
+        exec(&self.to_program(state))
+    }
+
+    fn to_program(&self, state: CpuState) -> Program {
+        to_program!(&[self], state)
     }
 
     fn to_op(&self) -> u32 {
@@ -56,7 +60,11 @@ impl Arbitrary for Auipc {
 
 impl Op for Auipc {
     fn execute(&self, state: CpuState) -> TraceTable<BaseElement> {
-        execute!(&[self], state, self.pc)
+        exec(&self.to_program(state))
+    }
+
+    fn to_program(&self, state: CpuState) -> Program {
+        to_program!(&[self], state, self.pc)
     }
 
     fn to_op(&self) -> u32 {
@@ -103,9 +111,13 @@ impl Arbitrary for Addi {
 }
 
 impl Op for Addi {
-    fn execute(&self, mut state: CpuState) -> TraceTable<BaseElement> {
+    fn execute(&self, state: CpuState) -> TraceTable<BaseElement> {
+        exec(&self.to_program(state))
+    }
+
+    fn to_program(&self, mut state: CpuState) -> Program {
         state.regs[self.rs1] = self.rs1_val as u32;
-        execute!(&[self], state)
+        to_program!(&[self], state)
     }
 
     fn to_op(&self) -> u32 {
@@ -151,7 +163,11 @@ impl Arbitrary for Jal {
 
 impl Op for Jal {
     fn execute(&self, state: CpuState) -> TraceTable<BaseElement> {
-        execute!(&[self], state, self.pc)
+        exec(&self.to_program(state))
+    }
+
+    fn to_program(&self, state: CpuState) -> Program {
+        to_program!(&[self], state, self.pc)
     }
 
     fn to_op(&self) -> u32 {
@@ -223,9 +239,13 @@ impl Arbitrary for Jalr {
 }
 
 impl Op for Jalr {
-    fn execute(&self, mut state: CpuState) -> TraceTable<BaseElement> {
+    fn execute(&self, state: CpuState) -> TraceTable<BaseElement> {
+        exec(&self.to_program(state))
+    }
+
+    fn to_program(&self, mut state: CpuState) -> Program {
         state.regs[self.rs1] = self.rs1_value as u32;
-        execute!(&[self], state, self.pc)
+        to_program!(&[self], state, self.pc)
     }
 
     fn to_op(&self) -> u32 {
@@ -274,9 +294,13 @@ impl Arbitrary for Slti {
 }
 
 impl Op for Slti {
-    fn execute(&self, mut state: CpuState) -> TraceTable<BaseElement> {
+    fn execute(&self, state: CpuState) -> TraceTable<BaseElement> {
+        exec(&self.to_program(state))
+    }
+
+    fn to_program(&self, mut state: CpuState) -> Program {
         state.regs[self.rs1] = self.rs1_value as u32;
-        execute!(&[self], state)
+        to_program!(&[self], state)
     }
 
     fn to_op(&self) -> u32 {

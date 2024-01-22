@@ -1,5 +1,7 @@
 use rvsim::elf::{self, Elf32};
+use winterfell::math::{FieldElement, ToElements};
 
+#[derive(Clone, Debug)]
 pub struct Program {
     entry: u32,
     segments: Vec<(u32, Vec<u8>)>,
@@ -41,5 +43,19 @@ impl<'a> From<&Elf32<'a>> for Program {
             entry: elf.header.entry,
             segments,
         }
+    }
+}
+
+impl<E: FieldElement> ToElements<E> for Program {
+    fn to_elements(&self) -> Vec<E> {
+        assert_eq!(
+            self.segments.len(),
+            1,
+            "Only one segment is supported, got {}",
+            self.segments.len()
+        );
+        let mut res = vec![E::from(self.entry)];
+        res.extend(self.segments[0].1.iter().map(|insn| E::from(*insn)));
+        res
     }
 }

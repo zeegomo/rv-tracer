@@ -29,7 +29,7 @@ fn main() {
     let mut elf = Vec::new();
     File::open(path).unwrap().read_to_end(&mut elf).unwrap();
     let elf = Elf32::parse(&elf).unwrap();
-
+    let program = executor::Program::from(&elf);
     let proof = prove_from_elf::<Blake3_192>(
         elf,
         ProofOptions::new(
@@ -42,5 +42,5 @@ fn main() {
         ),
     )
     .unwrap();
-    verify::<Blake3_192>(proof).unwrap();
+    verify::<Blake3_192>(proof, program).unwrap();
 }

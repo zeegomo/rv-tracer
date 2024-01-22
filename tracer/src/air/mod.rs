@@ -1,5 +1,6 @@
-mod memory;
 mod cpu;
+mod memory;
+
 use winterfell::{
     math::{fields::f64::BaseElement, ExtensionOf, FieldElement},
     Air, AirContext, Assertion, AuxTraceRandElements, EvaluationFrame, ProofOptions, TraceInfo,
@@ -12,6 +13,8 @@ pub struct RiscvAir {
 
 use trace_defs::{AUX_TRACE_WIDTH, LOADING, MAIN_TRACE_WIDTH};
 
+use crate::executor::Program;
+
 impl RiscvAir {
     /// Returns last step of the execution trace.
     pub fn last_step(&self) -> usize {
@@ -19,13 +22,15 @@ impl RiscvAir {
     }
 }
 
+const NUM_ASSERTIONS: usize = 1;
+
 impl Air for RiscvAir {
     type BaseField = BaseElement;
-    type PublicInputs = ();
+    type PublicInputs = Program;
 
     // CONSTRUCTOR
     // --------------------------------------------------------------------------------------------
-    fn new(trace_info: TraceInfo, _pub_inputs: (), options: ProofOptions) -> Self {
+    fn new(trace_info: TraceInfo, _program: Program, options: ProofOptions) -> Self {
         assert_eq!(MAIN_TRACE_WIDTH + AUX_TRACE_WIDTH, trace_info.width());
 
         let mut degrees = Vec::new();
@@ -40,7 +45,8 @@ impl Air for RiscvAir {
         // We also need to specify the exact number of assertions we will place against the
         // execution trace. This number must be the same as the number of items in a vector
         // returned from the get_assertions() method below.
-        let num_assertions = 1;
+        // let num_assertions = <dyn ToElements<BaseElement>>::to_elements(&program).len();
+        let num_assertions = NUM_ASSERTIONS;
 
         let aux_degrees = memory::get_aux_transition_constraint_degrees();
         let aux_assertions = 2;
@@ -86,7 +92,11 @@ impl Air for RiscvAir {
     }
 
     fn get_assertions(&self) -> Vec<Assertion<Self::BaseField>> {
-        vec![Assertion::single(LOADING, 0, Self::BaseField::ONE)]
+        let mut res = Vec::new();
+        // for i in 0..NUM_ASSERTIONS {
+        res.push(Assertion::single(LOADING, 0, Self::BaseField::ONE));
+        // }
+        res
     }
 
     fn evaluate_aux_transition<F, E>(

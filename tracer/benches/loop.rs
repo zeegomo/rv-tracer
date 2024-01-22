@@ -28,15 +28,20 @@ pub static PROOF_OPTIONS: Lazy<ProofOptions> = Lazy::new(|| {
 pub fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("loop prove", |b| {
         b.iter(|| {
-            let trace = rv_tracer::executor::exec(&(&Elf32::parse(LOOP_ELF).unwrap()).into());
-            prove::<Blake3_192>(trace, black_box(PROOF_OPTIONS.clone()))
+            let elf = Elf32::parse(LOOP_ELF).unwrap();
+            let program = rv_tracer::executor::Program::from(&elf);
+            let trace = rv_tracer::executor::exec(&program);
+            prove::<Blake3_192>(trace, black_box(PROOF_OPTIONS.clone()), program)
         })
     });
 
     c.bench_function("loop verify", |b| {
-        let trace = rv_tracer::executor::exec(&(&Elf32::parse(LOOP_ELF).unwrap()).into());
-        let proof = prove::<Blake3_192>(trace, black_box(PROOF_OPTIONS.clone())).unwrap();
-        b.iter(|| verify::<Blake3_192>(proof.clone()))
+        let elf = Elf32::parse(LOOP_ELF).unwrap();
+        let program = rv_tracer::executor::Program::from(&elf);
+        let trace = rv_tracer::executor::exec(&program);
+        let proof =
+            prove::<Blake3_192>(trace, black_box(PROOF_OPTIONS.clone()), program.clone()).unwrap();
+        b.iter(|| verify::<Blake3_192>(proof.clone(), program.clone()))
     });
 
     c.bench_function("loop trace generation", |b| {
