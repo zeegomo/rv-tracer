@@ -1,6 +1,7 @@
 mod cpu;
 mod memory;
 
+use miden_air::constraints::range;
 use winterfell::{
     math::{fields::f64::BaseElement, ExtensionOf, FieldElement, ToElements},
     Air, AirContext, Assertion, AuxTraceRandElements, EvaluationFrame, ProofOptions, TraceInfo,
@@ -12,9 +13,8 @@ pub struct RiscvAir {
     program: Program,
 }
 
-use trace_defs::{AUX_TRACE_WIDTH, BODY, INSN, LOADING, MAIN_TRACE_WIDTH, PC};
-
 use crate::executor::Program;
+use trace_defs::{AUX_TRACE_WIDTH, BODY, INSN, LOADING, MAIN_TRACE_WIDTH, PC};
 
 impl RiscvAir {
     /// Returns last step of the execution trace.
@@ -41,12 +41,14 @@ impl Air for RiscvAir {
         degrees.extend(cpu::slti::constraint_degrees());
 
         degrees.extend(memory::get_transition_constraint_degrees());
+        degrees.extend(range::get_transition_constraint_degrees());
         // One assertion for each instruction of the program binary + 1 for the initial pc value + 2
         // to control the start of the loading and execution phases.
         let num_assertions = <dyn ToElements<BaseElement>>::to_elements(&program).len() + 2;
 
-        let aux_degrees = memory::get_aux_transition_constraint_degrees();
-        let aux_assertions = 2;
+        let mut aux_degrees = memory::get_aux_transition_constraint_degrees();
+        aux_degrees.extend(range::get_aux_transition_constraint_degrees());
+        let aux_assertions = memory::NUM_AUX_ASSERTIONS + range::NUM_AUX_ASSERTIONS;
 
         Self {
             context: AirContext::new_multi_segment(
@@ -86,6 +88,9 @@ impl Air for RiscvAir {
         index += cpu::slti::evaluate_transitions(frame, periodic_values, &mut result[index..]);
         // memory
         index += memory::evaluate_transitions::<E>(frame, periodic_values, &mut result[index..]);
+        // range check
+        range::enforce_constraints(frame, &mut result[index..]);
+        index += range::get_transition_constraint_count();
         assert_eq!(index, self.context().num_main_transition_constraints());
     }
 
@@ -120,6 +125,7 @@ impl Air for RiscvAir {
     {
         // --- memory ----------------------------------------------------------------------
         memory::enforce_aux_constraints::<F, E>(main_frame, aux_frame, aux_rand_elements, result);
+        range::enforce_aux_constraints(main_frame, aux_frame, aux_rand_elements, &mut result[1..]);
     }
 
     fn get_aux_assertions<E: FieldElement<BaseField = Self::BaseField>>(
@@ -129,9 +135,12 @@ impl Air for RiscvAir {
         let mut result: Vec<Assertion<E>> = Vec::new();
 
         memory::get_aux_assertions_first_step(&mut result);
-        let last_step = self.last_step();
+        range::get_aux_assertions_first_step(&mut result);
 
+        let last_step = self.last_step();
         memory::get_aux_assertions_last_step(&mut result, last_step);
+        range::get_aux_assertions_last_step(&mut result, last_step);
+
         result
     }
 }

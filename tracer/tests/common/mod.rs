@@ -34,7 +34,7 @@ pub static PROOF_OPTIONS: Lazy<ProofOptions> = Lazy::new(|| {
     )
 });
 
-const OP_ADDR: u32 = 0x200;
+const OP_ADDR: u32 = 0x20000;
 
 // Generete a RISC-V program that loads the given state into the registers
 fn load_state(state: [u32; 32]) -> Vec<u8> {
@@ -81,6 +81,22 @@ macro_rules! to_program {
                         $ops.iter()
                             .flat_map(|o| o.to_op().to_le_bytes().into_iter()),
                     )
+                    .collect::<Vec<_>>(),
+            )],
+        )
+    };
+    ($ops:expr, $state:expr, ret) => {
+        Program::new(
+            OP_ADDR,
+            vec![(
+                OP_ADDR,
+                load_state($state.regs)
+                    .into_iter()
+                    .chain(
+                        $ops.iter()
+                            .flat_map(|o| o.to_op().to_le_bytes().into_iter()),
+                    )
+                    .chain(ops::RET.to_op().to_le_bytes().into_iter())
                     .collect::<Vec<_>>(),
             )],
         )
@@ -184,7 +200,7 @@ impl<const N: usize, O: Op> Trace<[O; N]> {
 
     pub fn program(&self) -> Program {
         let state: CpuState = CpuState { regs: [0; 32] };
-        to_program!(&self.op, state)
+        to_program!(&self.op, state, ret)
     }
 }
 

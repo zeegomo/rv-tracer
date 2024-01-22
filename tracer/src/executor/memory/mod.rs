@@ -5,6 +5,7 @@ use miden_air::trace::CHIPLETS_WIDTH;
 use miden_processor::{
     chiplets::{aux_trace::AuxTraceBuilder, Chiplets},
     math::StarkField,
+    range::RangeChecker,
 };
 use rvsim::MemoryAccess;
 use std::collections::BTreeMap;
@@ -217,6 +218,10 @@ impl Memory {
             }
         }
         chiplets
+    }
+
+    pub fn append_range_checks(&self, range: &mut RangeChecker) {
+        self.build_chiplet_trace().append_range_checks(range);
     }
 
     /// Generate a trace for the memory accesses

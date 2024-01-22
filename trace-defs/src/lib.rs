@@ -1,7 +1,7 @@
-pub const CPU_TRACE_WIDTH: usize = H_5+1;
+pub const CPU_TRACE_WIDTH: usize = H_5 + 1;
 pub const MEMORY_TRACE_WIDTH: usize = CHIPLETS_WIDTH;
-pub const MAIN_TRACE_WIDTH: usize = CHIPLETS_WIDTH + CPU_TRACE_WIDTH;
-pub const AUX_TRACE_WIDTH: usize = 1;
+pub const MAIN_TRACE_WIDTH: usize = CHIPLETS_WIDTH + CPU_TRACE_WIDTH + RANGE_WIDTH;
+pub const AUX_TRACE_WIDTH: usize = 2;
 
 // ------------------------CPU trace------------------------
 pub const CYCLE: usize = 0;
@@ -39,3 +39,7 @@ pub const H_5: usize = H_4 + 1;
 // ------------------------Memory trace------------------------
 pub const CHIPLETS_START: usize = CPU_TRACE_WIDTH;
 pub const CHIPLETS_WIDTH: usize = 17;
+
+// ------------------------Range check------------------------
+pub const RANGE_START: usize = CHIPLETS_START + CHIPLETS_WIDTH;
+pub const RANGE_WIDTH: usize = 2;

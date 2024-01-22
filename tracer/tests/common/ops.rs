@@ -2,6 +2,14 @@ use super::*;
 use quickcheck::{Arbitrary as _, Gen};
 use winterfell::math::fields::f64::BaseElement;
 
+pub const RET: Jalr = Jalr {
+    rd: 0,
+    rs1: 0,
+    rs1_value: 0,
+    imm: 0,
+    pc: 0,
+};
+
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Lui {
     pub rd: usize,
