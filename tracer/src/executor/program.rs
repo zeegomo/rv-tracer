@@ -54,8 +54,15 @@ impl<E: FieldElement> ToElements<E> for Program {
             "Only one segment is supported, got {}",
             self.segments.len()
         );
-        let mut res = vec![E::from(self.entry)];
-        res.extend(self.segments[0].1.iter().map(|insn| E::from(*insn)));
-        res
+        let segment = &self.segments[0].1;
+        // we only support non-compressed instructions which are 4 bytes each
+        assert_eq!(segment.len() % 4, 0);
+        let words = segment
+            .chunks_exact(4)
+            .map(|bytes| u32::from_le_bytes(bytes.try_into().unwrap()))
+            .map(E::from)
+            .collect::<Vec<_>>();
+
+        words
     }
 }

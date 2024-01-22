@@ -152,6 +152,7 @@ impl Arbitrary for Jal {
         let mut offset = JalOffset::arbitrary(g).0;
         offset -= offset % 4;
         // a 0 offset results in an endless loop
+
         while offset == 0 {
             offset = JalOffset::arbitrary(g).0;
             offset -= offset % 4;

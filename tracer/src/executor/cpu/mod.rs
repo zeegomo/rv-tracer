@@ -61,7 +61,7 @@ impl Cpu {
             let prev = self.state.clone();
             match self.interp(memory).step() {
                 Ok(op) => {
-                    log::trace!("executed {:?}", op);
+                    // println!("executed {:?}", op);
                     current_trace = self.current_trace(memory);
 
                     match op {

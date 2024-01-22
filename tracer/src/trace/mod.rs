@@ -92,14 +92,26 @@ impl Trace for TraceTable<BaseElement> {
 
     fn validate<A, E>(
         &self,
-        _air: &A,
+        air: &A,
         _aux_segments: &[ColMatrix<E>],
         _aux_rand_elements: &AuxTraceRandElements<E>,
     ) where
         A: Air<BaseField = Self::BaseField>,
         E: FieldElement<BaseField = Self::BaseField>,
     {
-        // TODO: validate
+        // println!("{:?}", air.get_assertions());
+        // first, check assertions against the main segment of the execution trace
+        for assertion in air.get_assertions() {
+            assertion.apply(self.length(), |step, value| {
+                assert!(
+                    value == self.main_segment().get(assertion.column(), step),
+                    "trace does not satisfy assertion main_trace({}, {}) == {}",
+                    assertion.column(),
+                    step,
+                    value
+                );
+            });
+        }
         // self.inner.validate(air, &[], aux_rand_elements)
     }
 }

@@ -2,16 +2,17 @@ mod cpu;
 mod memory;
 
 use winterfell::{
-    math::{fields::f64::BaseElement, ExtensionOf, FieldElement},
+    math::{fields::f64::BaseElement, ExtensionOf, FieldElement, ToElements},
     Air, AirContext, Assertion, AuxTraceRandElements, EvaluationFrame, ProofOptions, TraceInfo,
 };
 pub type BaseField = winterfell::math::fields::f64::BaseElement;
 
 pub struct RiscvAir {
     context: AirContext<BaseElement>,
+    program: Program,
 }
 
-use trace_defs::{AUX_TRACE_WIDTH, LOADING, MAIN_TRACE_WIDTH};
+use trace_defs::{AUX_TRACE_WIDTH, INSN, LOADING, MAIN_TRACE_WIDTH};
 
 use crate::executor::Program;
 
@@ -22,15 +23,13 @@ impl RiscvAir {
     }
 }
 
-const NUM_ASSERTIONS: usize = 1;
-
 impl Air for RiscvAir {
     type BaseField = BaseElement;
     type PublicInputs = Program;
 
     // CONSTRUCTOR
     // --------------------------------------------------------------------------------------------
-    fn new(trace_info: TraceInfo, _program: Program, options: ProofOptions) -> Self {
+    fn new(trace_info: TraceInfo, program: Program, options: ProofOptions) -> Self {
         assert_eq!(MAIN_TRACE_WIDTH + AUX_TRACE_WIDTH, trace_info.width());
 
         let mut degrees = Vec::new();
@@ -45,8 +44,8 @@ impl Air for RiscvAir {
         // We also need to specify the exact number of assertions we will place against the
         // execution trace. This number must be the same as the number of items in a vector
         // returned from the get_assertions() method below.
-        // let num_assertions = <dyn ToElements<BaseElement>>::to_elements(&program).len();
-        let num_assertions = NUM_ASSERTIONS;
+        let num_assertions = <dyn ToElements<BaseElement>>::to_elements(&program).len();
+        // let num_assertions = NUM_ASSERTIONS;
 
         let aux_degrees = memory::get_aux_transition_constraint_degrees();
         let aux_assertions = 2;
@@ -61,6 +60,7 @@ impl Air for RiscvAir {
                 options,
             )
             .set_num_transition_exemptions(2),
+            program,
         }
     }
 
@@ -92,10 +92,13 @@ impl Air for RiscvAir {
     }
 
     fn get_assertions(&self) -> Vec<Assertion<Self::BaseField>> {
-        let mut res = Vec::new();
-        // for i in 0..NUM_ASSERTIONS {
-        res.push(Assertion::single(LOADING, 0, Self::BaseField::ONE));
-        // }
+        let mut res = Vec::with_capacity(self.context().num_assertions());
+        let program_load = <dyn ToElements<BaseElement>>::to_elements(&self.program);
+        // let _pc = program_load.remove(0);
+
+        for (i, elem) in program_load.iter().enumerate() {
+            res.push(Assertion::single(INSN, i, *elem));
+        }
         res
     }
 
