@@ -12,7 +12,7 @@ pub struct RiscvAir {
     program: Program,
 }
 
-use trace_defs::{AUX_TRACE_WIDTH, INSN, LOADING, MAIN_TRACE_WIDTH};
+use trace_defs::{AUX_TRACE_WIDTH, INSN, MAIN_TRACE_WIDTH};
 
 use crate::executor::Program;
 
