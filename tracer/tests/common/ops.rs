@@ -151,9 +151,10 @@ impl Arbitrary for Jal {
         let pc = Pc::arbitrary(g).0;
         let mut offset = JalOffset::arbitrary(g).0;
         offset -= offset % 4;
-        // a 0 offset results in an endless loop
 
-        while offset == 0 {
+        // a 0 offset results in an endless loop
+        // avoid jumping back to loading instructions to avoid a loop…
+        while -64 * 4 <= offset && offset <= 0 {
             offset = JalOffset::arbitrary(g).0;
             offset -= offset % 4;
         }
