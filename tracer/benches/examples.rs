@@ -5,7 +5,8 @@ use rvsim::elf::Elf32;
 use winterfell::{math::fields::f64::BaseElement, FieldExtension, ProofOptions};
 // TODO add generate gtrace
 
-const LOOP_ELF: &[u8] = include_bytes!("../../loop/loop.bin");
+const LOOP_ELF: &[u8] = include_bytes!("../../examples/loop/loop.bin");
+const FIBONACCI_ELF: &[u8] = include_bytes!("../../examples/fibonacci/fibonacci.bin");
 
 const NUM_QUERIES: usize = 10;
 const BLOWUP_FACTOR: usize = 32;
@@ -25,7 +26,8 @@ pub static PROOF_OPTIONS: Lazy<ProofOptions> = Lazy::new(|| {
         FRI_REMAINDER_MAX_DEGREE,
     )
 });
-pub fn criterion_benchmark(c: &mut Criterion) {
+
+pub fn loop_15(c: &mut Criterion) {
     c.bench_function("loop prove", |b| {
         b.iter(|| {
             let elf = Elf32::parse(LOOP_ELF).unwrap();
@@ -49,5 +51,29 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, criterion_benchmark);
+pub fn fibonacci_1000(c: &mut Criterion) {
+    c.bench_function("fibonacci prove", |b| {
+        b.iter(|| {
+            let elf = Elf32::parse(FIBONACCI_ELF).unwrap();
+            let program = rv_tracer::executor::Program::from(&elf);
+            let trace = rv_tracer::executor::exec(&program);
+            prove::<Blake3_192>(trace, black_box(PROOF_OPTIONS.clone()), program)
+        })
+    });
+
+    c.bench_function("fibonacci verify", |b| {
+        let elf = Elf32::parse(FIBONACCI_ELF).unwrap();
+        let program = rv_tracer::executor::Program::from(&elf);
+        let trace = rv_tracer::executor::exec(&program);
+        let proof =
+            prove::<Blake3_192>(trace, black_box(PROOF_OPTIONS.clone()), program.clone()).unwrap();
+        b.iter(|| verify::<Blake3_192>(proof.clone(), program.clone()))
+    });
+
+    c.bench_function("fibonacci trace generation", |b| {
+        b.iter(|| rv_tracer::executor::exec(&(&Elf32::parse(FIBONACCI_ELF).unwrap()).into()));
+    });
+}
+
+criterion_group!(benches, loop_15, fibonacci_1000);
 criterion_main!(benches);

@@ -3,3 +3,5 @@
 /loop/target
 /tracer/target
 /constraint-macros/target
+/examples/loop/target
+/examples/fibonacci/target

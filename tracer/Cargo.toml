@@ -28,7 +28,7 @@ quickcheck_macros = "1"
 once_cell = "1"
 
 [[bench]]
-name = "loop"
+name = "examples"
 harness = false
 
 # https://bheisler.github.io/criterion.rs/book/faq.html#cargo-bench-gives-unrecognized-option-errors-for-valid-command-line-options
