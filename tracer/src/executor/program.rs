@@ -1,5 +1,7 @@
 use rvsim::elf::{self, Elf32};
+use winterfell::math::{FieldElement, ToElements};
 
+#[derive(Clone, Debug)]
 pub struct Program {
     entry: u32,
     segments: Vec<(u32, Vec<u8>)>,
@@ -41,5 +43,28 @@ impl<'a> From<&Elf32<'a>> for Program {
             entry: elf.header.entry,
             segments,
         }
+    }
+}
+
+impl<E: FieldElement> ToElements<E> for Program {
+    fn to_elements(&self) -> Vec<E> {
+        assert_eq!(
+            self.segments.len(),
+            1,
+            "Only one segment is supported, got {}",
+            self.segments.len()
+        );
+        let segment = &self.segments[0].1;
+        // we only support non-compressed instructions which are 4 bytes each
+        assert_eq!(segment.len() % 4, 0);
+        let mut words = vec![E::from(self.entrypoint())];
+        words.extend(
+            segment
+                .chunks_exact(4)
+                .map(|bytes| u32::from_le_bytes(bytes.try_into().unwrap()))
+                .map(E::from),
+        );
+
+        words
     }
 }

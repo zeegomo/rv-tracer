@@ -16,9 +16,10 @@ macro_rules! generate_tests {
                 #[allow(non_snake_case)]
                 fn [<test_ $op _ok>](trace: Trace<$op>) -> bool {
                     let row = <Trace<$op>>::op_start();
+                    let program = trace.program();
                     let table = trace.table();
                     let trace_info = table.get_info();
-                    let air = rv_tracer::air::RiscvAir::new(trace_info, (), PROOF_OPTIONS.clone());
+                    let air = rv_tracer::air::RiscvAir::new(trace_info, program, PROOF_OPTIONS.clone());
                     let mut results = vec![BaseElement::ZERO; air.context().num_transition_constraints()];
                     let mut frame = EvaluationFrame::new(MAIN_TRACE_WIDTH);
                     table.read_main_frame(row, &mut frame);
@@ -30,9 +31,11 @@ macro_rules! generate_tests {
                     #[allow(non_snake_case)]
                     fn [<test_ $op _ $perturb _neg>](trace: PerturbedTrace<$op, $perturb>) -> bool {
                         let row = <PerturbedTrace<$op, $perturb>>::op_start();
+                        let program = trace.program();
                         let table = trace.table;
                         let trace_info = table.get_info();
-                        let air = rv_tracer::air::RiscvAir::new(trace_info, (), PROOF_OPTIONS.clone());
+
+                        let air = rv_tracer::air::RiscvAir::new(trace_info, program, PROOF_OPTIONS.clone());
                         let mut results = vec![BaseElement::ZERO; air.context().num_transition_constraints()];
                         let mut frame = EvaluationFrame::new(MAIN_TRACE_WIDTH);
                         table.read_main_frame(row, &mut frame);
@@ -64,8 +67,9 @@ macro_rules! generate_batched {
             quickcheck::quickcheck! {
                 #[allow(non_snake_case)]
                 fn [<test_ $op _prove_and_verify>](trace: Trace<[$op; 16]>) -> bool {
-                    let proof = prove::<Blake3_192>(trace.table(),PROOF_OPTIONS.clone());
-                    verify::<Blake3_192>(proof.unwrap()).is_ok()
+                    let program = trace.program();
+                    let proof = prove::<Blake3_192>(trace.table(),PROOF_OPTIONS.clone(), program.clone());
+                    verify::<Blake3_192>(proof.unwrap(), program).is_ok()
 
                 }
             }

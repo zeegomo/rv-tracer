@@ -69,9 +69,9 @@ fn load_state(state: [u32; 32]) -> Vec<u8> {
         .collect::<Vec<_>>()
 }
 
-macro_rules! execute {
-    ($ops:expr, $state:expr) => {{
-        let program = Program::new(
+macro_rules! to_program {
+    ($ops:expr, $state:expr) => {
+        Program::new(
             OP_ADDR,
             vec![(
                 OP_ADDR,
@@ -83,28 +83,32 @@ macro_rules! execute {
                     )
                     .collect::<Vec<_>>(),
             )],
-        );
-        exec(&program)
-    }};
-    ($ops:expr, $state:expr, $pc:expr) => {{
-        let pc = ($pc) - 64 * 4;
-        let ops = load_state($state.regs)
-            .into_iter()
-            .chain(
-                $ops.iter()
-                    .flat_map(|o| o.to_op().to_le_bytes().into_iter()),
-            )
-            .collect::<Vec<_>>();
-
-        let program = Program::new(pc, vec![(pc, ops)]);
-        exec(&program)
-    }};
+        )
+    };
+    ($ops:expr, $state:expr, $pc:expr) => {
+        Program::new(
+            ($pc) - 64 * 4,
+            vec![(
+                ($pc) - 64 * 4,
+                load_state($state.regs)
+                    .into_iter()
+                    .chain(
+                        $ops.iter()
+                            .flat_map(|o| o.to_op().to_le_bytes().into_iter()),
+                    )
+                    .collect::<Vec<_>>(),
+            )],
+        )
+    };
 }
 
-pub(crate) use execute;
+pub(crate) use to_program;
 
 pub trait Op: Debug + Clone {
     fn to_op(&self) -> u32;
+    fn to_program(&self, state: CpuState) -> Program {
+        to_program!(&[self], state)
+    }
     fn execute(&self, state: CpuState) -> TraceTable<BaseElement>;
     fn rd(&self) -> u32 {
         let op = self.to_op();
@@ -154,8 +158,7 @@ impl<O: Op> Trace<O> {
     // this is not actually dead
     #[allow(dead_code)]
     pub fn table(&self) -> TraceTable<BaseElement> {
-        let state: CpuState = CpuState { regs: [0; 32] };
-        self.op.execute(state)
+        exec(&self.program())
     }
 
     #[allow(dead_code)]
@@ -167,14 +170,21 @@ impl<O: Op> Trace<O> {
         + 1 // load the test operation into memory
         + 64 // execute the additional operations to set registers
     }
+
+    pub fn program(&self) -> Program {
+        self.op.to_program(CpuState { regs: [0; 32] })
+    }
 }
 
 impl<const N: usize, O: Op> Trace<[O; N]> {
     #[allow(dead_code)]
     pub fn table(&self) -> TraceTable<BaseElement> {
-        let state: CpuState = CpuState { regs: [0; 32] };
+        exec(&self.program())
+    }
 
-        execute!(&self.op, state)
+    pub fn program(&self) -> Program {
+        let state: CpuState = CpuState { regs: [0; 32] };
+        to_program!(&self.op, state)
     }
 }
 
@@ -196,6 +206,11 @@ impl<O: Op, P: Field + 'static> PerturbedTrace<O, P> {
         64 // load the additional operations into memory
     + 1 // load the test operation into memory
     + 64 // execute the additional operations to set registers
+    }
+
+    #[allow(dead_code)]
+    pub fn program(&self) -> Program {
+        self.op.to_program(self.state.clone())
     }
 }
 
