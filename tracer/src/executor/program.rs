@@ -57,11 +57,13 @@ impl<E: FieldElement> ToElements<E> for Program {
         let segment = &self.segments[0].1;
         // we only support non-compressed instructions which are 4 bytes each
         assert_eq!(segment.len() % 4, 0);
-        let words = segment
-            .chunks_exact(4)
-            .map(|bytes| u32::from_le_bytes(bytes.try_into().unwrap()))
-            .map(E::from)
-            .collect::<Vec<_>>();
+        let mut words = vec![E::from(self.entrypoint())];
+        words.extend(
+            segment
+                .chunks_exact(4)
+                .map(|bytes| u32::from_le_bytes(bytes.try_into().unwrap()))
+                .map(E::from),
+        );
 
         words
     }

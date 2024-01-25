@@ -12,7 +12,7 @@ pub struct RiscvAir {
     program: Program,
 }
 
-use trace_defs::{AUX_TRACE_WIDTH, INSN, MAIN_TRACE_WIDTH};
+use trace_defs::{AUX_TRACE_WIDTH, BODY, INSN, LOADING, MAIN_TRACE_WIDTH, PC};
 
 use crate::executor::Program;
 
@@ -41,11 +41,9 @@ impl Air for RiscvAir {
         degrees.extend(cpu::slti::constraint_degrees());
 
         degrees.extend(memory::get_transition_constraint_degrees());
-        // We also need to specify the exact number of assertions we will place against the
-        // execution trace. This number must be the same as the number of items in a vector
-        // returned from the get_assertions() method below.
-        let num_assertions = <dyn ToElements<BaseElement>>::to_elements(&program).len();
-        // let num_assertions = NUM_ASSERTIONS;
+        // One assertion for each instruction of the program binary + 1 for the initial pc value + 2
+        // to control the start of the loading and execution phases.
+        let num_assertions = <dyn ToElements<BaseElement>>::to_elements(&program).len() + 2;
 
         let aux_degrees = memory::get_aux_transition_constraint_degrees();
         let aux_assertions = 2;
@@ -93,12 +91,19 @@ impl Air for RiscvAir {
 
     fn get_assertions(&self) -> Vec<Assertion<Self::BaseField>> {
         let mut res = Vec::with_capacity(self.context().num_assertions());
-        let program_load = <dyn ToElements<BaseElement>>::to_elements(&self.program);
-        // let _pc = program_load.remove(0);
+        let mut program_load = <dyn ToElements<BaseElement>>::to_elements(&self.program);
+        let pc = program_load.remove(0);
+        let n_insn = program_load.len();
 
+        res.push(Assertion::single(LOADING, 0, BaseElement::ONE));
         for (i, elem) in program_load.iter().enumerate() {
+            // TODO: check we are in the loading phase
             res.push(Assertion::single(INSN, i, *elem));
         }
+        res.push(Assertion::single(PC, n_insn, pc));
+        // after loading we move to execution
+        res.push(Assertion::single(BODY, n_insn, BaseElement::ONE));
+
         res
     }
 
