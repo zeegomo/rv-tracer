@@ -5,7 +5,6 @@ mod program;
 use miden_processor::{range::RangeChecker, RangeCheckTrace};
 pub use program::Program;
 use std::time::Instant;
-use trace_defs::CYCLE;
 
 use crate::{
     executor::{cpu::Cpu, memory::Memory},

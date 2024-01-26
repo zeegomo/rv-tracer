@@ -41,6 +41,12 @@ pub struct RegisterFile {
     stores: u32,
 }
 
+impl Default for RegisterFile {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RegisterFile {
     pub fn new() -> Self {
         Self {
