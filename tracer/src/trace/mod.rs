@@ -1,4 +1,4 @@
-use miden_processor::chiplets::aux_trace::AuxTraceBuilder;
+use miden_processor::{chiplets, range};
 use trace_defs::*;
 
 use winterfell::{
@@ -13,6 +13,17 @@ pub struct TraceTable<E: StarkField> {
     inner: winterfell::TraceTable<E>,
     layout: TraceLayout,
     aux_builder: AuxTraceBuilder,
+}
+
+pub struct AuxTraceBuilder {
+    mem: chiplets::aux_trace::AuxTraceBuilder,
+    range: range::AuxTraceBuilder,
+}
+
+impl AuxTraceBuilder {
+    pub fn new(mem: chiplets::aux_trace::AuxTraceBuilder, range: range::AuxTraceBuilder) -> Self {
+        Self { mem, range }
+    }
 }
 
 impl<Field: StarkField> TraceTable<Field> {
@@ -59,18 +70,31 @@ impl Trace for TraceTable<BaseElement> {
         }
 
         // add the running product columns for the chiplets
-        let mut bus = self
+        let bus = self
             .aux_builder
+            .mem
             .build_memory_aux_column(self.main_segment(), rand_elements);
+
+        // add the range check columns
+        let range = self
+            .aux_builder
+            .range
+            .build_aux_columns(self.main_segment(), rand_elements);
+
+        let mut aux_columns = vec![bus].into_iter().chain(range).collect::<Vec<_>>();
         // // inject random values into the last rows of the trace
         use miden_processor::crypto::RandomCoin;
         use miden_processor::crypto::RpoRandomCoin;
         let mut rng = RpoRandomCoin::new(&[(1u32.into())]);
-        for row in bus.iter_mut().skip(self.length() - NUM_RAND_ROWS) {
-            *row = rng.draw().expect("failed to draw a random value");
+
+        // inject random values into the last rows of the trace
+        for i in self.length() - NUM_RAND_ROWS..self.length() {
+            for column in aux_columns.iter_mut() {
+                column[i] = rng.draw().expect("failed to draw a random value");
+            }
         }
 
-        Some(ColMatrix::new(vec![bus]))
+        Some(ColMatrix::new(aux_columns))
     }
 
     fn read_main_frame(&self, row_idx: usize, frame: &mut EvaluationFrame<Self::BaseField>) {

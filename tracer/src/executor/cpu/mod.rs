@@ -120,6 +120,7 @@ impl Cpu {
             memory.advance_bus_clk();
             Self::save_u32_to_bits(&mut current_trace[RD_BITS_END..], rd);
         }
+        log::trace!("completed in {} cycles", self.clock.read_cycle());
     }
 
     fn interp<'m>(&mut self, memory: &'m mut Memory) -> Interp<'_, 'm, '_, Memory, SimpleClock> {
@@ -188,7 +189,7 @@ impl Cpu {
         let state = CpuState::new(program.entrypoint());
         let mut clock = SimpleClock::new();
         clock.instret = memory.bus_clock() as u64;
-
+        log::trace!("loading completed in {} cycles", clock.instret);
         Self {
             state,
             clock,

@@ -4,6 +4,8 @@ use winterfell::{
     Assertion, AuxTraceRandElements, EvaluationFrame, TransitionConstraintDegree,
 };
 
+pub const NUM_AUX_ASSERTIONS: usize = 2;
+
 /// Returns the set of periodic columns required by chiplets in the Chiplets module.
 pub fn get_periodic_column_values() -> Vec<Vec<BaseElement>> {
     chiplets::get_periodic_column_values()
