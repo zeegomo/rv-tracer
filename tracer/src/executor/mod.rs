@@ -2,6 +2,7 @@ mod cpu;
 pub mod memory;
 mod program;
 
+use miden_air::FieldElement;
 use miden_processor::{range::RangeChecker, RangeCheckTrace};
 pub use program::Program;
 use std::time::Instant;
@@ -63,6 +64,7 @@ pub fn exec(program: &Program) -> TraceTable<Felem> {
         .into_iter()
         .chain(mem_trace)
         .chain(range_check_trace)
+        .chain(std::iter::repeat(vec![Felem::ZERO; trace_len]).take(10))
         .collect::<Vec<_>>();
 
     TraceTable::new(
