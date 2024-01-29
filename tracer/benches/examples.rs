@@ -28,7 +28,7 @@ pub static PROOF_OPTIONS: Lazy<ProofOptions> = Lazy::new(|| {
 });
 
 pub fn loop_15(c: &mut Criterion) {
-    c.bench_function("loop prove", |b| {
+    c.bench_function("cpu loop prove", |b| {
         b.iter(|| {
             let elf = Elf32::parse(LOOP_ELF).unwrap();
             let program = rv_tracer::executor::Program::from(&elf);
@@ -37,7 +37,7 @@ pub fn loop_15(c: &mut Criterion) {
         })
     });
 
-    c.bench_function("loop verify", |b| {
+    c.bench_function("cpu loop verify", |b| {
         let elf = Elf32::parse(LOOP_ELF).unwrap();
         let program = rv_tracer::executor::Program::from(&elf);
         let trace = rv_tracer::executor::exec(&program);
@@ -46,13 +46,13 @@ pub fn loop_15(c: &mut Criterion) {
         b.iter(|| verify::<Blake3_192>(proof.clone(), program.clone()))
     });
 
-    c.bench_function("loop trace generation", |b| {
+    c.bench_function("cpu loop trace generation", |b| {
         b.iter(|| rv_tracer::executor::exec(&(&Elf32::parse(LOOP_ELF).unwrap()).into()));
     });
 }
 
 pub fn fibonacci_1000(c: &mut Criterion) {
-    c.bench_function("fibonacci prove", |b| {
+    c.bench_function("cpu fibonacci prove", |b| {
         b.iter(|| {
             let elf = Elf32::parse(FIBONACCI_ELF).unwrap();
             let program = rv_tracer::executor::Program::from(&elf);
@@ -61,7 +61,7 @@ pub fn fibonacci_1000(c: &mut Criterion) {
         })
     });
 
-    c.bench_function("fibonacci verify", |b| {
+    c.bench_function("cpu fibonacci verify", |b| {
         let elf = Elf32::parse(FIBONACCI_ELF).unwrap();
         let program = rv_tracer::executor::Program::from(&elf);
         let trace = rv_tracer::executor::exec(&program);
@@ -70,10 +70,10 @@ pub fn fibonacci_1000(c: &mut Criterion) {
         b.iter(|| verify::<Blake3_192>(proof.clone(), program.clone()))
     });
 
-    c.bench_function("fibonacci trace generation", |b| {
+    c.bench_function("cpu fibonacci trace generation", |b| {
         b.iter(|| rv_tracer::executor::exec(&(&Elf32::parse(FIBONACCI_ELF).unwrap()).into()));
     });
 }
 
-criterion_group!(benches, loop_15, fibonacci_1000);
-criterion_main!(benches);
+criterion_group!(cpu, loop_15, fibonacci_1000);
+criterion_main!(cpu);
