@@ -114,20 +114,21 @@ fn save_baseline(baseline: &str, group_id: &str, function_id: &str, result: usiz
         },
     };
 
-    std::fs::create_dir_all(format!("criterion/{group_id}/{function_id}/{baseline}")).unwrap();
+    let base = std::env::current_dir()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("target")
+        .join(format!("criterion/{group_id}/{function_id}/{baseline}"));
+    println!("saving to {}", base.display());
+    std::fs::create_dir_all(&base).unwrap();
     std::fs::write(
-        format!(
-            "criterion/{group_id}/{function_id}/{baseline}/estimates.json
-        "
-        ),
+        base.join("estimates.json"),
         serde_json::to_string(&cestimates).unwrap(),
     )
     .unwrap();
     std::fs::write(
-        format!(
-            "criterion/{group_id}/{function_id}/{baseline}/benchmark.json
-    "
-        ),
+        base.join("benchmark.json"),
         serde_json::to_string(&cbenchmark).unwrap(),
     )
     .unwrap();
