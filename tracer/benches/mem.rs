@@ -78,10 +78,10 @@ fn bench(program: Program) -> (usize, usize, usize) {
     (prove, verify, exec)
 }
 
-fn save_baseline(baseline: &str, group_id: &str, function_id: &str, result: usize) {
+fn save_baseline(baseline: &str, group_id: &str, result: usize) {
     let cbenchmark = CBenchmark {
         group_id: group_id.to_string(),
-        function_id: Some(function_id.into()),
+        function_id: None,
         value_str: None,
         throughput: None,
         full_id: group_id.to_string(),
@@ -119,7 +119,7 @@ fn save_baseline(baseline: &str, group_id: &str, function_id: &str, result: usiz
         .parent()
         .unwrap()
         .join("target")
-        .join(format!("criterion/{group_id}/{function_id}/{baseline}"));
+        .join(format!("criterion/{group_id}/{baseline}"));
     println!("saving to {}", base.display());
     std::fs::create_dir_all(&base).unwrap();
     std::fs::write(
@@ -151,12 +151,12 @@ fn main() {
     let (loop_prove, loop_verify, loop_exec) = loop_15();
     let (fibonacci_prove, fibonacci_verify, fibonacci_exec) = fibonacci_1000();
     if let Some(baseline) = &args.save_baseline {
-        save_baseline(baseline, "loop".into(), "prove", loop_prove);
-        save_baseline(baseline, "loop".into(), "verify", loop_verify);
-        save_baseline(baseline, "loop".into(), "exec", loop_exec);
-        save_baseline(baseline, "fibonacci".into(), "prove", fibonacci_prove);
-        save_baseline(baseline, "fibonacci".into(), "verify", fibonacci_verify);
-        save_baseline(baseline, "fibonacci".into(), "exec", fibonacci_exec);
+        save_baseline(baseline, "mem loop prove".into(), loop_prove);
+        save_baseline(baseline, "mem loop verify".into(), loop_verify);
+        save_baseline(baseline, "mem loop exec".into(), loop_exec);
+        save_baseline(baseline, "mem fibonacci prove".into(), fibonacci_prove);
+        save_baseline(baseline, "mem fibonacci verify".into(), fibonacci_verify);
+        save_baseline(baseline, "mem fibonacci exec".into(), fibonacci_exec);
         return;
     } else {
         println!("loop");
