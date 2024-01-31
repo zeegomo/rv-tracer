@@ -5,7 +5,7 @@ on: [pull_request]
 jobs:
   bench-cpu:
     name: cpu benchmark
-    runs-on: [ubuntu-latest]
+    runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@v3
         with:
@@ -17,15 +17,28 @@ jobs:
           branchName: ${{ github.base_ref }}
           benchName: "examples"
   bench-mem:
-    name: memory benchmark
-    runs-on: [ubuntu-latest]
+    name: fib exec mem
+    runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@v3
         with:
           submodules: true
       - uses: dtolnay/rust-toolchain@stable
-      - uses: boa-dev/criterion-compare-action@v3
+      - name: Build
+        id: run
+        run: cargo bench --bench fib_exec >> $GITHUB_OUTPUT
+      - uses: actions/upload-artifact@v4
         with:
-          cwd: "tracer"
-          branchName: ${{ github.base_ref }}
-          benchName: "mem"
+          name: fib-verify
+          path: rv-tracer/tracer/dhat-heap.json
+      - uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: ${{ steps.run.outputs.out }} 
+            })
+
+
