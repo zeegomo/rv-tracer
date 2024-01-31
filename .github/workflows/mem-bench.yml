@@ -43,5 +43,5 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: "Fib 1000 peak memory usage:\n exec: " + ${{ steps.run_exec.outputs.out }}[3] / 1024 + " kB\n prove: " + ${{ steps.run_prove.outputs.out }}[3] / 1024 + " kB\n verify: " + ${{ steps.run_verify.outputs.out }}[3] / 1024 + " kB"
+              body: "**Fib 1000 peak memory usage**:\n * exec: " + ${{ steps.run_exec.outputs.out }}[3] / 1024 + " kB\n * prove: " + ${{ steps.run_prove.outputs.out }}[3] / 1024 + " kB\n * verify: " + ${{ steps.run_verify.outputs.out }}[3] / 1024 + " kB"
             })
