@@ -11,13 +11,15 @@ jobs:
         with:
           submodules: true
       - uses: dtolnay/rust-toolchain@stable
-      - name: Build
+      - name: Run bench
         id: run
         run: cargo bench --bench fib_exec >> $GITHUB_OUTPUT
+      - name: List
+        run: ls -ahl tracer/
       - uses: actions/upload-artifact@v4
         with:
           name: fib-verify
-          path: rv-tracer/tracer/dhat-heap.json
+          path: tracer/dhat-heap.json
       - uses: actions/github-script@v6
         with:
           script: |
@@ -25,5 +27,5 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: "Max mem: " + ${{ steps.run.outputs.out[2] }} + " bytes"
+              body: "Max mem: " + ${{ steps.run.outputs.out }}[2] + " bytes"
             })
