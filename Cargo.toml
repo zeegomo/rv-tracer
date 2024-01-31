@@ -14,3 +14,6 @@ opt-level = 2
 # faster tests
 [profile.test.package.rand_chacha]
 opt-level = 3
+
+[profile.bench]
+debug = true

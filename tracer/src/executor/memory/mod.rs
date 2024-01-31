@@ -100,6 +100,7 @@ pub struct Memory {
     // We will implement the memory locally and forward all accesses at the end to the miden backend.
     buf: BTreeMap<u32, u32>,
     accesses: Vec<Access>,
+    chiplets_trace: Option<Chiplets>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -133,6 +134,7 @@ impl Memory {
             buf: BTreeMap::new(),
             accesses: Vec::new(),
             register_file: RegisterFile::new(),
+            chiplets_trace: None,
         }
     }
 
@@ -178,16 +180,17 @@ impl Memory {
         });
     }
 
-    fn build_chiplet_trace(&self) -> Chiplets {
+    fn build_chiplet_trace(&mut self) {
+        debug_assert!(self.chiplets_trace.is_none());
         // We're only going to use the memory (and possibly range checker), but this
         // wrapper makes it convenient to use it.
         // TODO: extract only the parts that we need
         let mut chiplets = Chiplets::new(Default::default());
-        let mut accesses = self.accesses.clone();
-        accesses.extend(self.register_file.accesses.clone());
+        let mut accesses = core::mem::take(&mut self.accesses);
+        accesses.extend(self.register_file.accesses.drain(..));
         accesses.sort_by_key(|a| a.mem_clk());
         let mut chiplet_clk = 0;
-        for access in accesses.iter().copied() {
+        for access in accesses {
             match access {
                 Access::Load {
                     addr,
@@ -223,11 +226,16 @@ impl Memory {
                 }
             }
         }
-        chiplets
+
+        self.chiplets_trace = Some(chiplets);
     }
 
-    pub fn append_range_checks(&self, range: &mut RangeChecker) {
-        self.build_chiplet_trace().append_range_checks(range);
+    pub fn append_range_checks(&mut self, range: &mut RangeChecker) {
+        self.build_chiplet_trace();
+        self.chiplets_trace
+            .as_ref()
+            .unwrap()
+            .append_range_checks(range);
     }
 
     /// Generate a trace for the memory accesses
@@ -261,12 +269,15 @@ impl Memory {
     ///
     /// For the first row of the trace, values in `d0`, `d1`, and `d_inv` are set to zeros.
     pub fn into_trace(
-        self,
+        mut self,
         trace_len: usize,
     ) -> ([Vec<BaseElement>; MEMORY_TRACE_WIDTH], AuxTraceBuilder) {
-        assert!(self.trace_len() <= trace_len);
+        let mem_trace_len = self.trace_len();
+        assert!(mem_trace_len <= trace_len);
         let mut trace = self
-            .build_chiplet_trace()
+            .chiplets_trace
+            .take()
+            .unwrap()
             .into_trace(trace_len, NUM_RAND_ROWS);
 
         // use the column for v1 to signal whether this is a real memory op or not
@@ -274,14 +285,14 @@ impl Memory {
         assert!(trace.trace[MEMORY_IS_OP]
             .iter()
             .all(|v| *v == BaseElement::ZERO));
-        for row in trace.trace[MEMORY_IS_OP][..self.trace_len() - NUM_RAND_ROWS].iter_mut() {
+        for row in trace.trace[MEMORY_IS_OP][..mem_trace_len - NUM_RAND_ROWS].iter_mut() {
             *row = BaseElement::ONE;
         }
         (trace.trace, trace.aux_builder)
     }
 
     pub fn trace_len(&self) -> usize {
-        self.build_chiplet_trace().trace_len()
+        self.chiplets_trace.as_ref().unwrap().trace_len()
     }
 }
 
