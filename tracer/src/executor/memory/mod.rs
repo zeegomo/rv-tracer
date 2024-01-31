@@ -9,7 +9,7 @@ use miden_processor::{
 };
 use rvsim::MemoryAccess;
 use std::collections::BTreeMap;
-use winterfell::math::{fields::f64::BaseElement, FieldElement};
+use winterfell::math::fields::f64::BaseElement;
 
 const MEM_CTX: u32 = 0x0;
 const REG_CTX: u32 = 0x1;
@@ -272,22 +272,13 @@ impl Memory {
         mut self,
         trace_len: usize,
     ) -> ([Vec<BaseElement>; MEMORY_TRACE_WIDTH], AuxTraceBuilder) {
-        let mem_trace_len = self.trace_len();
-        assert!(mem_trace_len <= trace_len);
-        let mut trace = self
+        assert!(self.trace_len() <= trace_len);
+        let trace = self
             .chiplets_trace
             .take()
             .unwrap()
             .into_trace(trace_len, NUM_RAND_ROWS);
 
-        // use the column for v1 to signal whether this is a real memory op or not
-        const MEMORY_IS_OP: usize = 9;
-        assert!(trace.trace[MEMORY_IS_OP]
-            .iter()
-            .all(|v| *v == BaseElement::ZERO));
-        for row in trace.trace[MEMORY_IS_OP][..mem_trace_len - NUM_RAND_ROWS].iter_mut() {
-            *row = BaseElement::ONE;
-        }
         (trace.trace, trace.aux_builder)
     }
 
