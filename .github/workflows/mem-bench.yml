@@ -1,6 +1,10 @@
 name: Memory Bench
 
-on: [pull_request]
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
 
 jobs:
   bench-exec-mem:
@@ -11,63 +15,23 @@ jobs:
         with:
           submodules: true
       - uses: dtolnay/rust-toolchain@stable
-      - name: Run bench
-        id: run
+      - name: Run bench exec
+        id: run_exec
         run: cargo bench --bench fib_exec >> $GITHUB_OUTPUT
-      - name: List
-        run: ls -ahl tracer/
       - uses: actions/upload-artifact@v4
         with:
           name: fib-exec
           path: tracer/dhat-heap.json
-      - uses: actions/github-script@v6
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: "Max mem exec: " + ${{ steps.run.outputs.out }}[2] / 1024 + " kB"
-            })
-  bench-prove-mem:
-    name: fib prove mem
-    runs-on: [self-hosted]
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          submodules: true
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Run bench
-        id: run
+      - name: Run bench prove
+        id: run_prove
         run: cargo bench --bench fib_prove >> $GITHUB_OUTPUT
-      - name: List
-        run: ls -ahl tracer/
       - uses: actions/upload-artifact@v4
         with:
           name: fib-prove
           path: tracer/dhat-heap.json
-      - uses: actions/github-script@v6
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: "Max mem prove: " + ${{ steps.run.outputs.out }}[2] / 1024 + " kB"
-            })
-  bench-verify-mem:
-    name: fib verify mem
-    runs-on: [self-hosted]
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          submodules: true
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Run bench
-        id: run
+      - name: Run bench verify
+        id: run_verify
         run: cargo bench --bench fib_verify >> $GITHUB_OUTPUT
-      - name: List
-        run: ls -ahl tracer/
       - uses: actions/upload-artifact@v4
         with:
           name: fib-verify
@@ -79,5 +43,5 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: "Max mem verify: " + ${{ steps.run.outputs.out }}[2] / 1024 + " kB"
+              body: "Fib 1000 peak memory usage:\nexec: " + ${{ steps.run_exec.outputs.out }}[2] / 1024 + " kB\n" + "prove: " + ${{ steps.run_prove.outputs.out }}[2] / 1024 + " kB\n" "verify: " + ${{ steps.run_verify.outputs.out }}[2] / 1024 + " kB"
             })
