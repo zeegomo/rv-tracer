@@ -57,16 +57,7 @@ fn main() {
                 max_bytes,
                 ..
             } = dhat::HeapStats::get();
-            println!(
-                "
-        Fibonacci 1000 verify stats:
-
-        Total blocks: {total_blocks}
-        Total bytes: {total_bytes}
-        Max blocks: {max_blocks}
-        Max bytes: {max_bytes}
-    "
-            );
+            println!("out=[{total_blocks},{total_bytes},{max_blocks},{max_bytes}]");
         }
         Ok(ForkResult::Child) => {
             // we need to prove the program in a different process so that it does not interfere

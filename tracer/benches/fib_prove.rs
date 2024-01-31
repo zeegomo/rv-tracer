@@ -47,14 +47,5 @@ fn main() {
         max_bytes,
         ..
     } = dhat::HeapStats::get();
-    println!(
-        "
-        Fibonacci 1000 prove stats:
-
-        Total blocks: {total_blocks}
-        Total bytes: {total_bytes}
-        Max blocks: {max_blocks}
-        Max bytes: {max_bytes}
-    "
-    );
+    println!("out=[{total_blocks},{total_bytes},{max_blocks},{max_bytes}]");
 }
