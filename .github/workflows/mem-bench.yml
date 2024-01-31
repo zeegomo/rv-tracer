@@ -1,0 +1,47 @@
+name: Memory Bench
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  bench-exec-mem:
+    name: fib exec mem
+    runs-on: [ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Run bench exec
+        id: run_exec
+        run: cargo bench --bench fib_exec >> $GITHUB_OUTPUT
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fib-exec
+          path: tracer/dhat-heap.json
+      - name: Run bench prove
+        id: run_prove
+        run: cargo bench --bench fib_prove >> $GITHUB_OUTPUT
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fib-prove
+          path: tracer/dhat-heap.json
+      - name: Run bench verify
+        id: run_verify
+        run: cargo bench --bench fib_verify >> $GITHUB_OUTPUT
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fib-verify
+          path: tracer/dhat-heap.json
+      - uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: "**Fib 1000 peak memory usage**:\n * exec: " + ${{ steps.run_exec.outputs.out }}[3] / 1024 + " kB\n * prove: " + ${{ steps.run_prove.outputs.out }}[3] / 1024 + " kB\n * verify: " + ${{ steps.run_verify.outputs.out }}[3] / 1024 + " kB"
+            })

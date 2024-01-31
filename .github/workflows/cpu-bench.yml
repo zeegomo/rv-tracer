@@ -1,0 +1,18 @@
+name: Cpu Bench
+
+on: [pull_request]
+
+jobs:
+  bench-cpu:
+    name: cpu benchmark
+    runs-on: [self-hosted]
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: boa-dev/criterion-compare-action@v3
+        with:
+          cwd: "tracer"
+          branchName: ${{ github.base_ref }}
+          benchName: "examples"
