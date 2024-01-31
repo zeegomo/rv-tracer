@@ -1,4 +1,4 @@
-name: Bench
+name: Memory Bench
 
 on: [pull_request]
 
@@ -25,18 +25,5 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: ${{ steps.run.outputs.out }} 
+              body: "Max mem: " + ${{ steps.run.outputs.out[2] }} + " bytes"
             })
-  bench-cpu:
-    name: cpu benchmark
-    runs-on: [self-hosted]
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          submodules: true
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: boa-dev/criterion-compare-action@v3
-        with:
-          cwd: "tracer"
-          branchName: ${{ github.base_ref }}
-          benchName: "examples"
