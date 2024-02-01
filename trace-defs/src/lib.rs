@@ -38,7 +38,7 @@ pub const H_5: usize = H_4 + 1;
 
 // ------------------------Memory trace------------------------
 pub const CHIPLETS_START: usize = CPU_TRACE_WIDTH;
-pub const CHIPLETS_WIDTH: usize = 17;
+pub const CHIPLETS_WIDTH: usize = 10;
 
 // ------------------------Range check------------------------
 pub const RANGE_START: usize = CHIPLETS_START + CHIPLETS_WIDTH;

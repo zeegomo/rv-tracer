@@ -41,7 +41,7 @@ pub fn exec(program: &Program) -> TraceTable<Felem> {
     let trace_len = core::cmp::max(trace_len, MIN_LEN);
 
     let cpu_trace = cpu.into_trace(trace_len);
-    let (mem_trace, mem_aux_builder) = memory.into_trace(trace_len);
+    let (mut mem_trace, mem_aux_builder) = memory.into_trace(trace_len);
 
     let RangeCheckTrace {
         trace: mut range_check_trace,
@@ -55,6 +55,10 @@ pub fn exec(program: &Program) -> TraceTable<Felem> {
     // inject random values into the last rows of the trace
     for i in trace_len - NUM_RAND_ROWS..trace_len {
         for column in &mut range_check_trace {
+            column[i] = rng.draw().expect("failed to draw a random value");
+        }
+
+        for column in &mut mem_trace {
             column[i] = rng.draw().expect("failed to draw a random value");
         }
     }
