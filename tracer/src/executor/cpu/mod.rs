@@ -75,6 +75,12 @@ impl Cpu {
                             // TODO: this is essentially re-doing an addition
                             current_trace[H_0] = signed_overflow(rs1, i_imm);
                         }
+                        Op::Add { rs1, rs2, .. } => {
+                            let rs1 = prev.x[rs1] as i32;
+                            let rs2 = prev.x[rs2] as i32;
+                            // TODO: this is essentially re-doing an addition
+                            current_trace[H_0] = signed_overflow(rs1, rs2);
+                        }
                         Op::Jal { j_imm, .. } => {
                             let pc = prev.pc as i32;
                             current_trace[H_0] = signed_overflow(pc, 4);

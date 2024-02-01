@@ -21,7 +21,9 @@ air! {
     opcode = "0010011",
     funct3 = "000",
     parse = rs1 / rd,
-    constraints =  (rd + h0 * E::from(1u64 << 32)) - (rs1 + simm) => 1
+    constraints =
+        (rd + h0 * E::from(1u64 << 32)) - (rs1 + simm) => 1,
+        h0 * (h0 - E::ONE) * (h0 + E::ONE) => 3
 }
 
 // FIX: we ignore constraints for rd = 0 but we should not do that
@@ -134,14 +136,16 @@ air!(
 //         rd[..shamt] - rs1[32] => 1
 // );
 
-// air!(
-//     name = add,
-//     opcode = "0110011",
-//     funct3 = "000",
-//     funct5 = "00000",
-//     parse = rs1 / rs2 / rd,
-//     constraints = rd - (rs1 + rs2) => 1
-// );
+air!(
+    name = add,
+    opcode = "0110011",
+    funct3 = "000",
+    funct7 = "0000000",
+    parse = rs1 / rs2 / rd,
+    constraints =
+        (rd + h0 * E::from(1u64 << 32)) - (rs1 + rs2) => 1,
+        h0 * (h0 - E::ONE) * (h0 + E::ONE) => 3
+);
 
 // air!(
 //     name = sub,

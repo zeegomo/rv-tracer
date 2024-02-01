@@ -19,6 +19,7 @@ pub const RS2_END: usize = INS_END + 7;
 pub const RD_END: usize = UIMM_END + 20;
 pub const OPCODE_END: usize = RD_END + 5;
 pub const FUNCT3_END: usize = IMM_END + 17;
+pub const FUNCT7_END: usize = INS_END;
 pub const SHAMT_END: usize = INS_END + 7;
 pub const JAL_OFFSET_END: usize = INS_END;
 // 38-69: rs1

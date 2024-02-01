@@ -26,6 +26,10 @@ pub struct Rs1Bits;
 pub struct Rs2Bits;
 #[derive(Debug, Clone)]
 pub struct Pc;
+#[derive(Debug, Clone)]
+pub struct H0;
+#[derive(Debug, Clone)]
+pub struct H0Bin;
 
 // Rd where rd is supposed to be 0/1
 #[derive(Debug, Clone)]
@@ -140,6 +144,26 @@ impl Field for Pc {
         rng: &mut Gen,
     ) {
         perturb_field(&mut prev[PC], rng);
+    }
+}
+
+impl Field for H0 {
+    fn perturb<E: StarkField>(
+        _prev: &mut [E; MAIN_TRACE_WIDTH],
+        next: &mut [E; MAIN_TRACE_WIDTH],
+        rng: &mut Gen,
+    ) {
+        perturb_field(&mut next[H_0], rng);
+    }
+}
+
+impl Field for H0Bin {
+    fn perturb<E: StarkField>(
+        _prev: &mut [E; MAIN_TRACE_WIDTH],
+        next: &mut [E; MAIN_TRACE_WIDTH],
+        _rng: &mut Gen,
+    ) {
+        next[H_0] = E::ONE - next[H_0];
     }
 }
 

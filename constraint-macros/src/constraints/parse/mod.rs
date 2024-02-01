@@ -12,6 +12,7 @@ pub mod kw {
     syn::custom_keyword!(name);
     syn::custom_keyword!(opcode);
     syn::custom_keyword!(funct3);
+    syn::custom_keyword!(funct7);
     syn::custom_keyword!(parse);
     syn::custom_keyword!(constraints);
     syn::custom_keyword!(bitwise);
@@ -133,6 +134,7 @@ pub struct Air {
     pub name: Ident,
     pub opcode: ExprArray,
     pub funct3: Option<ExprArray>,
+    pub funct7: Option<ExprArray>,
     pub parse: Punctuated<Field, Token![/]>,
     pub constraints: Punctuated<Constraint, Token![,]>,
 }
@@ -199,6 +201,16 @@ impl Parse for Air {
             input.parse::<Token![,]>()?;
         }
 
+        // funct7 value, if any
+        let mut funct7 = None;
+        if input.peek(kw::funct7) {
+            input.parse::<kw::funct7>()?;
+            input.parse::<Token![=]>()?;
+            let fn7: Expr = input.parse()?;
+            funct7 = Some(fn7);
+            input.parse::<Token![,]>()?;
+        }
+
         // fields to read and make available to the constraint
         input.parse::<kw::parse>()?;
         input.parse::<Token![=]>()?;
@@ -215,6 +227,7 @@ impl Parse for Air {
             name,
             opcode: lit_to_array::<7>(opcode),
             funct3: funct3.map(lit_to_array::<3>),
+            funct7: funct7.map(lit_to_array::<7>),
             parse,
             constraints,
         })

@@ -24,6 +24,7 @@ pub fn generate(config: Air) -> TokenStream {
         name,
         opcode,
         funct3,
+        funct7,
         parse,
         constraints,
     } = config;
@@ -31,6 +32,17 @@ pub fn generate(config: Air) -> TokenStream {
     let funct3_flag_contents = if let Some(funct3) = funct3 {
         quote! {
             binary_flag(&#funct3, test, E::ONE)
+        }
+    } else {
+        quote! {
+            E::ONE
+        }
+    };
+
+    let funct7_deg = if funct7.is_some() { 7 } else { 0 };
+    let funct7_flag_contents = if let Some(funct7) = funct7 {
+        quote! {
+            binary_flag(&#funct7, test, E::ONE)
         }
     } else {
         quote! {
@@ -60,6 +72,7 @@ pub fn generate(config: Air) -> TokenStream {
                 const OPCODE_FLAG_DEG: usize = 7;
                 const REG_BITS: usize = #REG_BITS;
                 const FUNCT3_FLAG_DEG: usize = #funct3_deg as usize;
+                const FUNCT7_FLAG_DEG: usize = #funct7_deg as usize;
                 const SHAMT_CNT: usize = 1 << #shamt_deg as usize;
                 const SHAMT_DEG: usize = #shamt_deg as usize;
                 const TOT_CNT: usize = SHAMT_CNT;
@@ -77,9 +90,10 @@ pub fn generate(config: Air) -> TokenStream {
 
                     let body_flag = next[BODY];
                     let funct3_flag = funct3_flag(&current[FUNCT3_END..FUNCT3_END + 3]);
+                    let funct7_flag = funct7_flag(&current[FUNCT7_END..FUNCT7_END + 7]);
                     let op_flag = op_flag(&current[OPCODE_END..OPCODE_END + 7]);
 
-                    if body_flag == E::ZERO || funct3_flag == E::ZERO || op_flag == E::ZERO {
+                    if body_flag == E::ZERO || funct3_flag == E::ZERO || op_flag == E::ZERO || funct7_flag == E::ZERO{
                         return TOT_CNT * #n_constraints;
                     }
 
@@ -101,8 +115,9 @@ pub fn generate(config: Air) -> TokenStream {
                     let rd_zero = binary_flag(&[E::ZERO, E::ZERO, E::ZERO, E::ZERO, E::ZERO], &current[RD_END..RD_END + #REG_NUM_PO2], E::ONE);
                     for shamt in 0..SHAMT_CNT {
                         let shamt_flag = shamt_flag(shamt as u8, &current[SHAMT_END..SHAMT_END + 5]);
-                        let cumulative_flag = op_flag * body_flag * funct3_flag * shamt_flag * (E::ONE - rd_zero);
+                        let cumulative_flag = op_flag * body_flag * funct3_flag * funct7_flag * shamt_flag * (E::ONE - rd_zero);
                         #(
+                            
                             result[index] = (#c_exprs) * cumulative_flag;
                             index += 1;
                         )*
@@ -116,7 +131,7 @@ pub fn generate(config: Air) -> TokenStream {
                     let mut degrees = Vec::with_capacity(TOT_CNT);
                     for _ in 0..TOT_CNT {
                         for deg in CONSTRAINT_DEGS.iter() {
-                            degrees.push(TransitionConstraintDegree::new( OPCODE_FLAG_DEG + FUNCT3_FLAG_DEG + BODY_FLAG_DEG + SHAMT_DEG + 5 + deg));
+                            degrees.push(TransitionConstraintDegree::new( OPCODE_FLAG_DEG + FUNCT3_FLAG_DEG + FUNCT7_FLAG_DEG + BODY_FLAG_DEG + SHAMT_DEG + 5 + deg));
                         }
                     }
                     degrees
@@ -152,6 +167,14 @@ pub fn generate(config: Air) -> TokenStream {
                 {
                     assert_eq!(test.len(), 3, "requested funct3 flag with invalid length {}", test.len());
                     #funct3_flag_contents
+                }
+
+                fn funct7_flag<E>(test: &[E]) -> E
+                where
+                    E: FieldElement,
+                {
+                    assert_eq!(test.len(), 7, "requested funct7 flag with invalid length {}", test.len());
+                    #funct7_flag_contents
                 }
 
                 fn op_flag<E>(test: &[E]) -> E
