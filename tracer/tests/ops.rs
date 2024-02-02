@@ -2,7 +2,9 @@ mod common;
 use common::ops::*;
 use common::perturb::*;
 use common::*;
+use quickcheck::TestResult;
 use rv_tracer::{prove, verify};
+use std::any::TypeId;
 use trace_defs::MAIN_TRACE_WIDTH;
 use winterfell::{
     math::{fields::f64::BaseElement, FieldElement},
@@ -29,7 +31,11 @@ macro_rules! generate_tests {
 
                 $(
                     #[allow(non_snake_case)]
-                    fn [<test_ $op _ $perturb _neg>](trace: PerturbedTrace<$op, $perturb>) -> bool {
+                    fn [<test_ $op _ $perturb _neg>](trace: PerturbedTrace<$op, $perturb>) -> TestResult {
+                        if !trace.op().discard_perturb(TypeId::of::<$perturb>()) {
+                            return TestResult::discard();
+                        }
+
                         let row = <PerturbedTrace<$op, $perturb>>::op_start();
                         let program = trace.program();
                         let table = trace.table;
@@ -40,7 +46,7 @@ macro_rules! generate_tests {
                         let mut frame = EvaluationFrame::new(MAIN_TRACE_WIDTH);
                         table.read_main_frame(row, &mut frame);
                         air.evaluate_transition(&frame, &[], &mut results);
-                        results != vec![BaseElement::ZERO; air.context().num_transition_constraints()]
+                        TestResult::from_bool(results != vec![BaseElement::ZERO; air.context().num_transition_constraints()])
                     }
                 )*
 
@@ -88,3 +94,4 @@ generate_tests!(Slti, RdBits, Rs1Bits, Imm);
 generate_batched!(Slti);
 generate_tests!(Add, RdBits, Rs1Bits, Rs2Bits, H0, H0Bin);
 generate_batched!(Add);
+generate_tests!(Bne, Rs1Bits, Rs2Bits, H0);

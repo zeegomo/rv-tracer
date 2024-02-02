@@ -40,6 +40,7 @@ impl Air for RiscvAir {
         degrees.extend(cpu::jalr::constraint_degrees());
         degrees.extend(cpu::slti::constraint_degrees());
         degrees.extend(cpu::add::constraint_degrees());
+        degrees.extend(cpu::bne::constraint_degrees());
 
         degrees.extend(memory::get_transition_constraint_degrees());
         degrees.extend(range::get_transition_constraint_degrees());
@@ -88,6 +89,7 @@ impl Air for RiscvAir {
         index += cpu::jalr::evaluate_transitions(frame, periodic_values, &mut result[index..]);
         index += cpu::slti::evaluate_transitions(frame, periodic_values, &mut result[index..]);
         index += cpu::add::evaluate_transitions(frame, periodic_values, &mut result[index..]);
+        index += cpu::bne::evaluate_transitions(frame, periodic_values, &mut result[index..]);
         // memory
         index += memory::evaluate_transitions::<E>(frame, periodic_values, &mut result[index..]);
         // range check
