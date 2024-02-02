@@ -12,9 +12,7 @@ env:
 
 jobs:
   build-and-test:
-
-    runs-on: [self-hosted]
-
+    runs-on: [alpha]
     steps:
     - uses: actions/checkout@v3
       with:
@@ -24,3 +22,12 @@ jobs:
       run: cargo build --verbose --manifest-path tracer/Cargo.toml
     - name: Run tests
       run: cargo test --verbose --manifest-path tracer/Cargo.toml --all-features
+  clippy:
+    runs-on: [alpha]
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+    - uses: dtolnay/rust-toolchain@stable
+    - name: Build
+      run: cargo clippy -Dwarnings
