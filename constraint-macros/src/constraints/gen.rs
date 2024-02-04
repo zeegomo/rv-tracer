@@ -119,13 +119,6 @@ pub fn generate(config: Air) -> TokenStream {
                         let cumulative_flag = op_flag * body_flag * funct3_flag * funct7_flag * shamt_flag * (E::ONE - rd_zero);
                         #(
                             result[index] = (#c_exprs) * cumulative_flag;
-                            if result[index] != E::ZERO {
-                                for i in 0..32 {
-                                    print!("{} ", current[INS_END + i]);
-                                }
-                                println!();
-                                println!("{}: {rs1} != {rs2} ? : {pc} + {branch_offset} = {}", stringify!(#name), next[PC]);
-                            }
                             index += 1;
                         )*
                     }
