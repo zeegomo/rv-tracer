@@ -187,7 +187,7 @@ impl Memory {
         // TODO: extract only the parts that we need
         let mut chiplets = Chiplets::new(Default::default());
         let mut accesses = core::mem::take(&mut self.accesses);
-        accesses.extend(self.register_file.accesses.drain(..));
+        accesses.append(&mut self.register_file.accesses);
         accesses.sort_by_key(|a| a.mem_clk());
         let mut chiplet_clk = 0;
         for access in accesses {
