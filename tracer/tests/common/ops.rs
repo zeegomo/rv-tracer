@@ -147,6 +147,73 @@ impl From<Addi> for rvsim::Op {
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
+pub struct Add {
+    pub rd: usize,
+    pub rs1: usize,
+    pub rs1_val: i32,
+    pub rs2: usize,
+    pub rs2_val: i32,
+}
+
+impl Arbitrary for Add {
+    fn arbitrary(g: &mut Gen) -> Self {
+        let rd = Reg::arbitrary(g).0;
+        let rs1 = Reg::arbitrary(g).0;
+        let rs2 = Reg::arbitrary(g).0;
+        let mut rs1_val = i32::arbitrary(g);
+        let mut rs2_val = i32::arbitrary(g);
+        // we can't modify r0;
+        if rs1 == 0 {
+            rs1_val = 0;
+        }
+
+        if rs2 == rs1 {
+            rs2_val = rs1_val;
+        }
+
+        if rs2 == 0 {
+            rs2_val = 0;
+        }
+        Self {
+            rd,
+            rs1,
+            rs2,
+            rs1_val,
+            rs2_val,
+        }
+    }
+}
+
+impl Op for Add {
+    fn execute(&self, state: CpuState) -> TraceTable<BaseElement> {
+        exec(&self.to_program(state))
+    }
+
+    fn to_program(&self, mut state: CpuState) -> Program {
+        state.regs[self.rs1] = self.rs1_val as u32;
+        state.regs[self.rs2] = self.rs2_val as u32;
+        to_program!(&[self], state)
+    }
+
+    fn to_op(&self) -> u32 {
+        let rs2 = (self.rs2 << 20) as u32;
+        let rs1 = (self.rs1 << 15) as u32;
+        let rd = (self.rd << 7) as u32;
+        0b0110011 | rs2 | rs1 | rd
+    }
+}
+
+impl From<Add> for rvsim::Op {
+    fn from(other: Add) -> rvsim::Op {
+        rvsim::Op::Add {
+            rd: other.rd,
+            rs1: other.rs1,
+            rs2: other.rs2,
+        }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Jal {
     rd: usize,
     offset: i32,

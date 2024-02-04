@@ -9,7 +9,7 @@ on:
 jobs:
   bench-exec-mem:
     name: fib exec mem
-    runs-on: [ubuntu-latest]
+    runs-on: [alpha]
     steps:
       - uses: actions/checkout@v3
         with:

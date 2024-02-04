@@ -80,9 +80,11 @@ macro_rules! generate_batched {
 generate_tests!(Lui, RdBits, Uimm);
 generate_batched!(Lui);
 generate_tests!(Auipc, RdBits, Uimm, Pc);
-generate_tests!(Addi, RdBits, Rs1Bits, Imm);
+generate_tests!(Addi, RdBits, Rs1Bits, Imm, H0, H0Bin);
 generate_batched!(Addi);
 generate_tests!(Jal, RdBits, Pc);
 generate_tests!(Jalr, RdBits, Pc, Rs1Bits);
 generate_tests!(Slti, RdBits, Rs1Bits, Imm);
 generate_batched!(Slti);
+generate_tests!(Add, RdBits, Rs1Bits, Rs2Bits, H0, H0Bin);
+generate_batched!(Add);
