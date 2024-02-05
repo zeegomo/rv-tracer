@@ -8,7 +8,7 @@ use rv_tracer::{
     executor::{exec, Program},
     trace::TraceTable,
 };
-use std::fmt::Debug;
+use std::{any::TypeId, fmt::Debug};
 use trace_defs::MAIN_TRACE_WIDTH;
 use winterfell::{
     math::{fields::f64::BaseElement, FieldElement},
@@ -130,6 +130,9 @@ pub trait Op: Debug + Clone {
         let op = self.to_op();
         (op >> 7) & 0x1f
     }
+    fn discard_perturb(&self, _perturb_id: TypeId) -> bool {
+        false
+    }
 }
 
 impl<T: Op> Op for &T {
@@ -227,6 +230,11 @@ impl<O: Op, P: Field + 'static> PerturbedTrace<O, P> {
     #[allow(dead_code)]
     pub fn program(&self) -> Program {
         self.op.to_program(self.state.clone())
+    }
+
+    #[allow(dead_code)]
+    pub fn op(&self) -> &O {
+        &self.op
     }
 }
 

@@ -22,6 +22,8 @@ pub const FUNCT3_END: usize = IMM_END + 17;
 pub const FUNCT7_END: usize = INS_END;
 pub const SHAMT_END: usize = INS_END + 7;
 pub const JAL_OFFSET_END: usize = INS_END;
+pub const BRANCH_OFFSET_31_25_END: usize = INS_END;
+pub const BRANCH_OFFSET_11_7_END: usize = INS_END + 20;
 // 38-69: rs1
 pub const RS1_BITS_END: usize = INS_END + 32;
 // 70-101: rs2

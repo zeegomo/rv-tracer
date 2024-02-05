@@ -108,6 +108,7 @@ pub fn generate(config: Air) -> TokenStream {
                     let h4 = next[H_4];
                     let h5 = next[H_5];
                     let jal_offset = get_jal_offset(&current);
+                    let branch_offset = get_branch_offset(&current);
 
                     let rd = get_rd(&next);
                     let rs1 = get_rs1(&current);
@@ -117,7 +118,6 @@ pub fn generate(config: Air) -> TokenStream {
                         let shamt_flag = shamt_flag(shamt as u8, &current[SHAMT_END..SHAMT_END + 5]);
                         let cumulative_flag = op_flag * body_flag * funct3_flag * funct7_flag * shamt_flag * (E::ONE - rd_zero);
                         #(
-                            
                             result[index] = (#c_exprs) * cumulative_flag;
                             index += 1;
                         )*
@@ -147,6 +147,10 @@ pub fn generate(config: Air) -> TokenStream {
 
                 fn get_jal_offset<E: FieldElement>(trace: &[E]) -> E {
                     jal_offset(&trace[JAL_OFFSET_END..JAL_OFFSET_END + 20])
+                }
+
+                fn get_branch_offset<E: FieldElement>(trace: &[E]) -> E {
+                    branch_offset(&trace[BRANCH_OFFSET_31_25_END..BRANCH_OFFSET_31_25_END + 7], &trace[BRANCH_OFFSET_11_7_END..BRANCH_OFFSET_11_7_END + 5])
                 }
 
                 fn get_rd<E: FieldElement>(trace: &[E]) -> E {
@@ -228,6 +232,21 @@ pub fn generate(config: Air) -> TokenStream {
                     for i in 12..20 {
                         result += offset[i] * E::from(1u32 << (19 - i + 12));
                     }
+                    result
+                }
+
+                fn branch_offset<E: FieldElement>(bits_31_25: &[E], bits_11_7: &[E]) -> E {
+                    assert_eq!(bits_31_25.len(), 7, "requested branch offset with invalid length for bits 31-25: {}", bits_31_25.len());
+                    assert_eq!(bits_11_7.len(), 5, "requested branch offset with invalid length for bits 11-7: {}", bits_11_7.len());
+                    let mut result = E::ZERO;
+                    result -= bits_31_25[0] * E::from(1u32 << 12);
+                    for i in 0..=5 {
+                        result += bits_31_25[i+1] * E::from(1u32 << (10 - i));
+                    }
+                    for i in 0..4 {
+                        result += bits_11_7[i] * E::from(1u32 << (4 - i));
+                    }
+                    result += bits_11_7[4] * E::from(1u32 << 11);
                     result
                 }
 

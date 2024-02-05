@@ -65,6 +65,19 @@ air!(
         rd * rd - rd => 2
 );
 
+// if the branch is not taken, then rs1 = rs2
+// if the branch is taken, then (a - b) != 0, which means the reciprocal 1 / (a - b) exists. We ask the user to provide
+// such value in h0, so that we can check that (rs1 - rs2) * h0 - 1 = 0
+air!(
+    name = bne,
+    opcode = "1100011",
+    funct3 = "001",
+    parse = rs1 / rs2,
+    constraints =
+        (next[PC] + h1 * E::from(1u64 << 32)  - pc - E::from(4u32)) * ((rs1 - rs2) * h0 - E::ONE) => 3,
+        (next[PC] + h1 * E::from(1u64 << 32) - branch_offset - pc) * (rs1 - rs2) => 2
+);
+
 // // TODO: add range checks to H0 and H1
 // // This check uses 2 additional helper registers to ensure the computation was
 // // performed correctly.

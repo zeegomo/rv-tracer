@@ -97,6 +97,20 @@ impl Cpu {
                                 current_trace[RS1_BITS_END + i] = ((rs1 >> (31 - i)) & 1).into();
                             }
                         }
+                        Op::Bne {
+                            rs1, rs2, b_imm, ..
+                        } => {
+                            let pc = prev.pc as i32;
+                            let rs1 = prev.x[rs1];
+                            let rs2 = prev.x[rs2];
+                            if rs1 != rs2 {
+                                current_trace[H_0] =
+                                    ONE / (signed::<Felem>(rs1) - signed::<Felem>(rs2));
+                                current_trace[H_1] = signed_overflow(pc, b_imm);
+                            } else {
+                                current_trace[H_1] = signed_overflow(pc, 4);
+                            }
+                        }
                         Op::Slti { i_imm, rs1, .. } => {
                             let rs1 = prev.x[rs1] as i32;
                             // FIXME: this is a workaround for the fact that we don't have constraints

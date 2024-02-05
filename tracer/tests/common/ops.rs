@@ -1,5 +1,6 @@
 use super::*;
 use quickcheck::{Arbitrary as _, Gen};
+use std::any::TypeId;
 use winterfell::math::fields::f64::BaseElement;
 
 pub const RET: Jalr = Jalr {
@@ -394,6 +395,103 @@ impl From<Slti> for rvsim::Op {
             rd: other.rd,
             rs1: other.rs1,
             i_imm: other.imm,
+        }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct Bne {
+    rs1: usize,
+    rs2: usize,
+    rs1_value: i32,
+    rs2_value: i32,
+    offset: i32,
+    pc: u32,
+}
+
+impl Arbitrary for Bne {
+    fn arbitrary(g: &mut Gen) -> Self {
+        let rs1 = Reg::arbitrary(g).0;
+        let rs2 = Reg::arbitrary(g).0;
+        let mut rs1_value = i32::arbitrary(g);
+        let mut rs2_value = i32::arbitrary(g);
+        let mut offset = Iimm::arbitrary(g).0;
+        // make sure the offset is 2-byte aligned
+        // TOFIX: this is not a requirement of Bne, but a fetch that is not 4-byte aligned
+        // will result in an exception
+        offset -= offset % 4;
+        let pc = Pc::arbitrary(g).0;
+        // we can't modify r0;
+        if rs1 == 0 {
+            rs1_value = 0;
+        }
+
+        if rs2 == rs1 {
+            rs2_value = rs1_value;
+        }
+
+        if rs2 == 0 {
+            rs2_value = 0;
+        }
+
+        if rs1 != rs2 {
+            // a 0 offset results in an endless loop
+            // avoid jumping back to loading instructions to avoid a loop…
+            while -64 * 4 <= offset && offset <= 0 {
+                offset = Iimm::arbitrary(g).0;
+                // TOFIX: this is not a requirement of Bne, but a fetch that is not 4-byte aligned
+                // will result in an exception
+                offset -= offset % 4;
+            }
+        }
+
+        Self {
+            rs1,
+            rs2,
+            rs1_value,
+            rs2_value,
+            offset,
+            pc,
+        }
+    }
+}
+
+impl Op for Bne {
+    fn execute(&self, state: CpuState) -> TraceTable<BaseElement> {
+        exec(&self.to_program(state))
+    }
+
+    fn to_program(&self, mut state: CpuState) -> Program {
+        state.regs[self.rs1] = self.rs1_value as u32;
+        state.regs[self.rs2] = self.rs2_value as u32;
+        to_program!(&[self], state, self.pc)
+    }
+
+    fn to_op(&self) -> u32 {
+        let b12 = ((self.offset as u32) & (1 << 12)) << 19;
+        let b_10_5 = ((self.offset as u32) & 0x7e0) << 20;
+        let b_4_1 = ((self.offset as u32) & 0x1E) << 7;
+        let b_11 = (self.offset as u32 & (1 << 11)) >> 4;
+        let rs2 = (self.rs2 << 20) as u32;
+        let rs1 = (self.rs1 << 15) as u32;
+        0b1100011 | b12 | b_10_5 | b_4_1 | b_11 | rs2 | rs1 | 0b001 << 12
+    }
+
+    fn discard_perturb(&self, id: TypeId) -> bool {
+        if id == TypeId::of::<String>() {
+            // discard permutations of H0 when it's not used (i.e. rs1 == rs2)
+            return self.rs1 == self.rs2;
+        }
+        false
+    }
+}
+
+impl From<Bne> for rvsim::Op {
+    fn from(other: Bne) -> rvsim::Op {
+        rvsim::Op::Bne {
+            rs1: other.rs1,
+            rs2: other.rs2,
+            b_imm: other.offset,
         }
     }
 }
