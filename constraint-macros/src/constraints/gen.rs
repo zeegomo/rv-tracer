@@ -3,7 +3,7 @@ use crate::constraints::parse::{Air, Field};
 use proc_macro::TokenStream;
 use quote::quote;
 
-use crate::{REG_BITS, REG_NUM_PO2, SHAMT_BITS};
+use crate::{REG_BITS, SHAMT_BITS};
 
 fn make_flag<'a, const VAL_LOG2: usize>(
     fields: impl IntoIterator<Item = &'a Field>,
@@ -38,11 +38,12 @@ pub fn generate(config: Air) -> TokenStream {
             E::ONE
         }
     };
-
-    let funct7_deg = if funct7.is_some() { 7 } else { 0 };
-    let funct7_flag_contents = if let Some(funct7) = funct7 {
+    // We reduce the constraints by using an additional trace column since funct7 will only
+    // have a small number of possible values (<< 2^7)
+    let funct7_deg = if funct7.is_some() { 1 } else { 0 };
+    let funct7_flag_contents = if let Some(_funct7) = funct7 {
         quote! {
-            binary_flag(&#funct7, test, E::ONE)
+            test[FUNCT7_ZERO]
         }
     } else {
         quote! {
@@ -71,6 +72,7 @@ pub fn generate(config: Air) -> TokenStream {
 
                 const OPCODE_FLAG_DEG: usize = 7;
                 const REG_BITS: usize = #REG_BITS;
+                const RD_ZERO_DEG: usize = 1;
                 const FUNCT3_FLAG_DEG: usize = #funct3_deg as usize;
                 const FUNCT7_FLAG_DEG: usize = #funct7_deg as usize;
                 const SHAMT_CNT: usize = 1 << #shamt_deg as usize;
@@ -90,7 +92,7 @@ pub fn generate(config: Air) -> TokenStream {
 
                     let body_flag = next[BODY];
                     let funct3_flag = funct3_flag(&current[FUNCT3_END..FUNCT3_END + 3]);
-                    let funct7_flag = funct7_flag(&current[FUNCT7_END..FUNCT7_END + 7]);
+                    let funct7_flag = funct7_flag(current);
                     let op_flag = op_flag(&current[OPCODE_END..OPCODE_END + 7]);
 
                     if body_flag == E::ZERO || funct3_flag == E::ZERO || op_flag == E::ZERO || funct7_flag == E::ZERO{
@@ -105,15 +107,13 @@ pub fn generate(config: Air) -> TokenStream {
                     let h1 = next[H_1];
                     let h2 = next[H_2];
                     let h3 = next[H_3];
-                    let h4 = next[H_4];
-                    let h5 = next[H_5];
                     let jal_offset = get_jal_offset(&current);
                     let branch_offset = get_branch_offset(&current);
 
                     let rd = get_rd(&next);
                     let rs1 = get_rs1(&current);
                     let rs2 = get_rs2(&current);
-                    let rd_zero = binary_flag(&[E::ZERO, E::ZERO, E::ZERO, E::ZERO, E::ZERO], &current[RD_END..RD_END + #REG_NUM_PO2], E::ONE);
+                    let rd_zero = current[RD_ZERO];
                     for shamt in 0..SHAMT_CNT {
                         let shamt_flag = shamt_flag(shamt as u8, &current[SHAMT_END..SHAMT_END + 5]);
                         let cumulative_flag = op_flag * body_flag * funct3_flag * funct7_flag * shamt_flag * (E::ONE - rd_zero);
@@ -131,7 +131,7 @@ pub fn generate(config: Air) -> TokenStream {
                     let mut degrees = Vec::with_capacity(TOT_CNT);
                     for _ in 0..TOT_CNT {
                         for deg in CONSTRAINT_DEGS.iter() {
-                            degrees.push(TransitionConstraintDegree::new( OPCODE_FLAG_DEG + FUNCT3_FLAG_DEG + FUNCT7_FLAG_DEG + BODY_FLAG_DEG + SHAMT_DEG + 5 + deg));
+                            degrees.push(TransitionConstraintDegree::new(OPCODE_FLAG_DEG + FUNCT3_FLAG_DEG + FUNCT7_FLAG_DEG + BODY_FLAG_DEG + SHAMT_DEG + RD_ZERO_DEG + deg));
                         }
                     }
                     degrees
@@ -177,7 +177,6 @@ pub fn generate(config: Air) -> TokenStream {
                 where
                     E: FieldElement,
                 {
-                    assert_eq!(test.len(), 7, "requested funct7 flag with invalid length {}", test.len());
                     #funct7_flag_contents
                 }
 
