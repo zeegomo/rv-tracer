@@ -8,6 +8,8 @@ use winterfell::{
 };
 pub type BaseField = winterfell::math::fields::f64::BaseElement;
 
+const MAX_DEG: usize = 16;
+
 pub struct RiscvAir {
     context: AirContext<BaseElement>,
     program: Program,
@@ -44,6 +46,14 @@ impl Air for RiscvAir {
 
         degrees.extend(memory::get_transition_constraint_degrees());
         degrees.extend(range::get_transition_constraint_degrees());
+
+        for (i, degree) in degrees.iter().enumerate() {
+            debug_assert!(
+                degree.min_blowup_factor() <= MAX_DEG,
+                "{i}-th degree {:?} is too large",
+                degree
+            );
+        }
         // One assertion for each instruction of the program binary + 1 for the initial pc value + 2
         // to control the start of the loading and execution phases.
         let num_assertions = <dyn ToElements<BaseElement>>::to_elements(&program).len() + 2;

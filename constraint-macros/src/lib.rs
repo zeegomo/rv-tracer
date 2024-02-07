@@ -1,7 +1,6 @@
 mod constraints;
 
 const REG_BITS: usize = 32;
-const REG_NUM_PO2: usize = 5;
 const SHAMT_BITS: usize = 5;
 
 extern crate proc_macro;

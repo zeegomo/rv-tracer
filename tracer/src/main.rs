@@ -14,7 +14,7 @@ struct Args {
 }
 
 const NUM_QUERIES: usize = 10;
-const BLOWUP_FACTOR: usize = 32;
+const BLOWUP_FACTOR: usize = 16;
 const GRINDING_FACTOR: u32 = 5;
 const FRI_FOLDING_FACTOR: usize = 4;
 const FRI_REMAINDER_MAX_DEGREE: usize = 255;

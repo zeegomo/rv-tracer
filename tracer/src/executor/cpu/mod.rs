@@ -5,8 +5,8 @@ use crate::{
 use rand::Rng;
 use rvsim::{Clock, CpuState, Interp, Op, SimpleClock};
 use trace_defs::{
-    BODY, CPU_TRACE_WIDTH, CYCLE, H_0, H_1, H_2, INSN, INS_END, LOADING, PC, RD_BITS_END,
-    RS1_BITS_END, RS2_BITS_END,
+    BODY, CPU_TRACE_WIDTH, CYCLE, FUNCT7_ZERO, H_0, H_1, H_2, INSN, INS_END, LOADING, PC,
+    RD_BITS_END, RD_ZERO, RS1_BITS_END, RS2_BITS_END,
 };
 use winterfell::math::FieldElement;
 
@@ -52,6 +52,15 @@ impl Cpu {
             // save register contentes to trace
             Self::save_u32_to_bits(&mut current_trace[RS1_BITS_END..], rs1);
             Self::save_u32_to_bits(&mut current_trace[RS2_BITS_END..], rs2);
+            if rd_idx == 0 {
+                current_trace[RD_ZERO] = ONE;
+            }
+            if current_trace[INS_END..INS_END + 7]
+                .iter()
+                .all(|&b| b == ZERO)
+            {
+                current_trace[FUNCT7_ZERO] = ONE;
+            }
 
             // Add current row to trace
             for (col, val) in self.trace.iter_mut().zip(current_trace) {
