@@ -70,7 +70,7 @@ pub fn exec(program: &Program) -> TraceTable<Felem> {
         .collect::<Vec<_>>();
 
     TraceTable::new(
-        trace,
-        AuxTraceBuilder::new(mem_aux_builder, range_aux_builder),
+        trace.clone(),
+        AuxTraceBuilder::new(mem_aux_builder, range_aux_builder, trace),
     )
 }

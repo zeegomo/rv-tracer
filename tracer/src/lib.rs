@@ -13,7 +13,7 @@ use trace::TraceTable;
 use winterfell::{
     crypto::{DefaultRandomCoin, ElementHasher},
     math::fields::f64::BaseElement,
-    ProofOptions, Prover, StarkProof, Trace, VerifierError,
+    ProofOptions, StarkProof, Trace, VerifierError,
 };
 
 pub fn prove<H: ElementHasher<BaseField = BaseElement>>(
@@ -21,10 +21,21 @@ pub fn prove<H: ElementHasher<BaseField = BaseElement>>(
     options: ProofOptions,
     program: Program,
 ) -> Result<StarkProof, ProverError> {
+    let trace_length = trace.length();
+    let mut proof = prove_with_split::<H>(trace, options, program, trace_length)?;
+    Ok(proof.0.pop().unwrap())
+}
+
+pub fn prove_with_split<H: ElementHasher<BaseField = BaseElement>>(
+    trace: TraceTable<BaseElement>,
+    options: ProofOptions,
+    program: Program,
+    segment_size: usize,
+) -> Result<(Vec<StarkProof>, Vec<StarkProof>), ProverError> {
     // generate the proof
     let prover = prover::RiscvProver::<H>::new(options, program);
     let now = Instant::now();
-    let proof = prover.prove(trace)?;
+    let proof = prover.prove_with_split(trace, segment_size)?;
     log::debug!("Generated proof in {} ms", now.elapsed().as_millis());
     Ok(proof)
 }
@@ -58,8 +69,28 @@ pub fn verify<H: ElementHasher<BaseField = BaseElement>>(
     proof: StarkProof,
     program: Program,
 ) -> Result<(), VerifierError> {
+    verify_with_split::<H>(vec![proof], Vec::new(), program)
+}
+
+pub fn verify_with_split<H: ElementHasher<BaseField = BaseElement>>(
+    proofs: Vec<StarkProof>,
+    link_proofs: Vec<StarkProof>,
+    program: Program,
+) -> Result<(), VerifierError> {
     let now = Instant::now();
-    winterfell::verify::<air::RiscvAir, H, DefaultRandomCoin<H>>(proof, program)?;
+    for proof in proofs.clone() {
+        winterfell::verify::<air::RiscvAir, H, DefaultRandomCoin<H>>(proof, program.clone())?;
+    }
+    for (proofs, link_proof) in proofs.windows(2).zip(link_proofs) {
+        let proof_1 = proofs[0].clone();
+        let proof_2 = proofs[1].clone();
+        winterfell::verify_split::<air::RiscvAir, H, DefaultRandomCoin<H>>(
+            proof_1,
+            proof_2,
+            link_proof,
+            program.clone(),
+        )?;
+    }
     log::debug!("Verified proof in {} ms", now.elapsed().as_millis());
     Ok(())
 }

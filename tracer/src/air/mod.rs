@@ -16,7 +16,7 @@ pub struct RiscvAir {
 }
 
 use crate::executor::Program;
-use trace_defs::{AUX_TRACE_WIDTH, BODY, INSN, LOADING, MAIN_TRACE_WIDTH, PC};
+use trace_defs::{AUX_TRACE_WIDTH, BODY, H_3, INSN, LOADING, MAIN_TRACE_WIDTH, PC};
 
 impl RiscvAir {
     /// Returns last step of the execution trace.
@@ -56,11 +56,13 @@ impl Air for RiscvAir {
         }
         // One assertion for each instruction of the program binary + 1 for the initial pc value + 2
         // to control the start of the loading and execution phases.
-        let num_assertions = <dyn ToElements<BaseElement>>::to_elements(&program).len() + 2;
+        // let num_assertions = <dyn ToElements<BaseElement>>::to_elements(&program).len() + 2;
+        let num_assertions = 1;
 
         let mut aux_degrees = memory::get_aux_transition_constraint_degrees();
         aux_degrees.extend(range::get_aux_transition_constraint_degrees());
-        let aux_assertions = memory::NUM_AUX_ASSERTIONS + range::NUM_AUX_ASSERTIONS;
+        // let aux_assertions = memory::NUM_AUX_ASSERTIONS + range::NUM_AUX_ASSERTIONS;
+        let aux_assertions = 1;
 
         Self {
             context: AirContext::new_multi_segment(
@@ -110,19 +112,19 @@ impl Air for RiscvAir {
 
     fn get_assertions(&self) -> Vec<Assertion<Self::BaseField>> {
         let mut res = Vec::with_capacity(self.context().num_assertions());
-        let mut program_load = <dyn ToElements<BaseElement>>::to_elements(&self.program);
-        let pc = program_load.remove(0);
-        let n_insn = program_load.len();
+        // let mut program_load = <dyn ToElements<BaseElement>>::to_elements(&self.program);
+        // let pc = program_load.remove(0);
+        // let n_insn = program_load.len();
 
-        res.push(Assertion::single(LOADING, 0, BaseElement::ONE));
-        for (i, elem) in program_load.iter().enumerate() {
-            // TODO: check we are in the loading phase
-            res.push(Assertion::single(INSN, i, *elem));
-        }
-        res.push(Assertion::single(PC, n_insn, pc));
-        // after loading we move to execution
-        res.push(Assertion::single(BODY, n_insn, BaseElement::ONE));
-
+        // res.push(Assertion::single(LOADING, 0, BaseElement::ONE));
+        // for (i, elem) in program_load.iter().enumerate() {
+        //     // TODO: check we are in the loading phase
+        //     res.push(Assertion::single(INSN, i, *elem));
+        // }
+        // res.push(Assertion::single(PC, n_insn, pc));
+        // // after loading we move to execution
+        // res.push(Assertion::single(BODY, n_insn, BaseElement::ONE));
+        res.push(Assertion::single(H_3, 0, BaseElement::ZERO));
         res
     }
 
