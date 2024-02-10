@@ -1,4 +1,5 @@
 use clap::Parser;
+use rv_tracer::air::Inputs;
 use rv_tracer::*;
 use rvsim::elf::Elf32;
 use std::fs::File;
@@ -42,5 +43,10 @@ fn main() {
         ),
     )
     .unwrap();
-    verify::<Blake3_192>(proof, program).unwrap();
+    let inputs = Inputs {
+        program,
+        segment_len: 0,
+        segment_n: 0,
+    };
+    verify::<Blake3_192>(proof, inputs).unwrap();
 }

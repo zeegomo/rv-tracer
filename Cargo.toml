@@ -17,3 +17,13 @@ opt-level = 3
 
 [profile.bench]
 debug = true
+
+[patch.crates-io]
+winter-prover = { path = "../winterfell/prover" }
+winter-math = { path = "../winterfell/math" }
+winter-crypto = { path = "../winterfell/crypto" }
+winter-air = { path = "../winterfell/air" }
+winter-utils = { path = "../winterfell/utils/core" }
+winter-rand-utils = { path = "../winterfell/utils/rand" }
+winter-fri = { path = "../winterfell/fri" }
+winter-verifier = { path = "../winterfell/verifier" }

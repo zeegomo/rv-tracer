@@ -106,6 +106,7 @@ impl Trace for TraceTable<BaseElement> {
             .range
             .build_aux_columns(self.aux_builder.full_main.main_segment(), rand_elements);
 
+        let dummy_column = vec![E::ZERO; self.aux_builder.full_main.length()];
         let mut aux_columns = vec![bus].into_iter().chain(range).collect::<Vec<_>>();
         // // inject random values into the last rows of the trace
         use miden_processor::crypto::RandomCoin;
