@@ -3,7 +3,7 @@ use common::ops::*;
 use common::perturb::*;
 use common::*;
 use quickcheck::TestResult;
-use rv_tracer::{prove, verify};
+use rv_tracer::{prove, prove_with_split, verify};
 use std::any::TypeId;
 use trace_defs::MAIN_TRACE_WIDTH;
 use winterfell::{
@@ -74,8 +74,11 @@ macro_rules! generate_batched {
                 #[allow(non_snake_case)]
                 fn [<test_ $op _prove_and_verify>](trace: Trace<[$op; 16]>) -> bool {
                     let program = trace.program();
-                    let proof = prove::<Blake3_192>(trace.table(),PROOF_OPTIONS.clone(), program.clone());
-                    verify::<Blake3_192>(proof.unwrap(), program).is_ok()
+                    let trace_length = trace.table().length();
+                    assert!(trace_length > 16);
+                    let segment_size = trace_length / 2;
+                    let (proofs, link_proofs) = prove_with_split::<Blake3_192>(trace.table(),PROOF_OPTIONS.clone(), program.clone(), segment_size).unwrap();
+                    verify::<Blake3_192>(proofs[0].clone(), program).is_ok()
 
                 }
             }
