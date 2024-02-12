@@ -1,5 +1,9 @@
 use clap::Parser;
-use rv_tracer::*;
+use rv_tracer::{
+    air::{Inputs, Segment},
+    executor::Program,
+    *,
+};
 use rvsim::elf::Elf32;
 use std::fs::File;
 use std::io::Read;
@@ -29,8 +33,8 @@ fn main() {
     let mut elf = Vec::new();
     File::open(path).unwrap().read_to_end(&mut elf).unwrap();
     let elf = Elf32::parse(&elf).unwrap();
-    let program = executor::Program::from(&elf);
-    let proof = prove_from_elf::<Blake3_192>(
+    let program = Program::from(&elf);
+    let mut proof = prove_from_elf::<Blake3_192>(
         elf,
         ProofOptions::new(
             NUM_QUERIES,
@@ -40,7 +44,16 @@ fn main() {
             FRI_FOLDING_FACTOR,
             FRI_REMAINDER_MAX_DEGREE,
         ),
+        air::SegmentConfig::Single,
     )
     .unwrap();
-    verify::<Blake3_192>(proof, program).unwrap();
+
+    verify::<Blake3_192>(
+        proof.pop().unwrap(),
+        Inputs {
+            program,
+            segment: Segment { segment_n: 0 },
+        },
+    )
+    .unwrap();
 }

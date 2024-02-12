@@ -5,7 +5,7 @@ use crate::{
 use rand::Rng;
 use rvsim::{Clock, CpuState, Interp, Op, SimpleClock};
 use trace_defs::{
-    BODY, CPU_TRACE_WIDTH, CYCLE, FUNCT7_ZERO, H_0, H_1, H_2, INSN, INS_END, LOADING, PC,
+    BODY, CPU_TRACE_WIDTH, CYCLE, FUNCT7_ZERO, H_0, H_1, H_2, H_3, INSN, INS_END, LOADING, PC,
     RD_BITS_END, RD_ZERO, RS1_BITS_END, RS2_BITS_END,
 };
 use winterfell::math::FieldElement;
@@ -230,24 +230,69 @@ impl Cpu {
         self.trace[0].len() + MIN_RAND_ROWS
     }
 
-    pub fn into_trace(self, trace_len: usize) -> [Vec<Felem>; CPU_TRACE_WIDTH] {
-        assert!(trace_len.is_power_of_two());
-        assert!(trace_len >= self.trace_len());
+    fn pad_column(col: &mut Vec<Felem>, index: usize, pad: usize) {
+        match index {
+            BODY | LOADING | H_3 => {
+                col.extend(vec![Felem::ZERO; pad]);
+            }
+            CYCLE => {
+                let start = *col.last().unwrap();
+                col.extend(
+                    core::iter::successors(Some(start + ONE), |prev| Some(*prev + ONE)).take(pad),
+                );
+            }
+            _ => {
+                let mut bytes = vec![0u32; pad];
+                rand::thread_rng().fill(&mut bytes[..]);
+                col.extend(bytes.iter().map(|&b| Felem::from(b)));
+            }
+        }
+    }
 
+    fn into_trace_inner(self, trace_len: usize) -> [Vec<Felem>; CPU_TRACE_WIDTH] {
         let mut trace = self.trace;
 
         for (i, column) in trace.iter_mut().enumerate() {
             let pad = trace_len - column.len();
-            if i == BODY || i == LOADING {
-                column.extend(vec![Felem::ZERO; pad]);
-            } else {
-                let mut bytes = vec![0u32; pad];
-                rand::thread_rng().fill(&mut bytes[..]);
-                column.extend(bytes.iter().map(|&b| Felem::from(b)));
-            }
+            Self::pad_column(column, i, pad);
         }
 
         trace
+    }
+
+    pub fn into_trace(self, trace_len: usize) -> [Vec<Felem>; CPU_TRACE_WIDTH] {
+        assert!(trace_len.is_power_of_two());
+        assert!(trace_len >= self.trace_len());
+
+        self.into_trace_inner(trace_len)
+    }
+
+    pub fn into_trace_with_splits(
+        self,
+        n_segments: usize,
+        segment_len: usize,
+    ) -> (
+        Vec<[Vec<Felem>; CPU_TRACE_WIDTH]>,
+        [Vec<Felem>; CPU_TRACE_WIDTH],
+    ) {
+        assert!(segment_len.is_power_of_two());
+
+        // the first segment can hold segment_len - 1 rows from the original execution (the last one in padding)
+        // while successive segments can only hold segment_len - 2 rows from the original execution (1 is used for padding and 1 is the last row of the previous segment)
+        let trace_len = n_segments * (segment_len - 2) + 1;
+        assert!(trace_len >= self.trace_len());
+        let trace_len = trace_len.next_power_of_two();
+
+        let full_trace = self.into_trace_inner(trace_len);
+
+        (
+            super::utils::split_trace_with_padding::<CPU_TRACE_WIDTH, _>(
+                &full_trace,
+                n_segments,
+                segment_len,
+            ),
+            full_trace,
+        )
     }
 }
 

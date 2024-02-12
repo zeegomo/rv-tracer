@@ -3,7 +3,10 @@ use common::ops::*;
 use common::perturb::*;
 use common::*;
 use quickcheck::TestResult;
-use rv_tracer::{prove, verify};
+use rv_tracer::{
+    air::{Inputs, Segment},
+    prove, verify,
+};
 use std::any::TypeId;
 use trace_defs::MAIN_TRACE_WIDTH;
 use winterfell::{
@@ -18,10 +21,15 @@ macro_rules! generate_tests {
                 #[allow(non_snake_case)]
                 fn [<test_ $op _ok>](trace: Trace<$op>) -> bool {
                     let row = <Trace<$op>>::op_start();
-                    let program = trace.program();
-                    let table = trace.table();
+                    let inputs = Inputs {
+                        program: trace.program(),
+                        segment: Segment {
+                            segment_n: 0,
+                        },
+                    };
+                    let table = trace.generate();
                     let trace_info = table.get_info();
-                    let air = rv_tracer::air::RiscvAir::new(trace_info, program, PROOF_OPTIONS.clone());
+                    let air = rv_tracer::air::RiscvAir::new(trace_info, inputs, PROOF_OPTIONS.clone());
                     let mut results = vec![BaseElement::ZERO; air.context().num_transition_constraints()];
                     let mut frame = EvaluationFrame::new(MAIN_TRACE_WIDTH);
                     table.read_main_frame(row, &mut frame);
@@ -29,19 +37,45 @@ macro_rules! generate_tests {
                     results == vec![BaseElement::ZERO; air.context().num_transition_constraints()]
                 }
 
+                #[allow(non_snake_case)]
+                fn [<test_ $op _ok_split>](trace: Trace<$op>) -> bool {
+                    let row = <Trace<$op>>::op_start();
+                    let inputs = Inputs {
+                        program: trace.program(),
+                        segment: Segment {
+                            segment_n: 0,
+                        },
+                    };
+                    let table = trace.generate();
+                    let trace_info = table.get_info();
+                    let air = rv_tracer::air::RiscvAir::new(trace_info, inputs, PROOF_OPTIONS.clone());
+                    let mut results = vec![BaseElement::ZERO; air.context().num_transition_constraints()];
+                    let mut frame = EvaluationFrame::new(MAIN_TRACE_WIDTH);
+                    table.read_main_frame(row, &mut frame);
+                    air.evaluate_transition(&frame, &[], &mut results);
+                    results == vec![BaseElement::ZERO; air.context().num_transition_constraints()]
+                }
+
+
+
                 $(
                     #[allow(non_snake_case)]
                     fn [<test_ $op _ $perturb _neg>](trace: PerturbedTrace<$op, $perturb>) -> TestResult {
-                        if !trace.op().discard_perturb(TypeId::of::<$perturb>()) {
+                        if trace.op().discard_perturb(TypeId::of::<$perturb>()) {
                             return TestResult::discard();
                         }
 
                         let row = <PerturbedTrace<$op, $perturb>>::op_start();
-                        let program = trace.program();
+                        let inputs = Inputs {
+                            program: trace.program(),
+                            segment: Segment {
+                                segment_n: 0,
+                            },
+                        };
                         let table = trace.table;
                         let trace_info = table.get_info();
 
-                        let air = rv_tracer::air::RiscvAir::new(trace_info, program, PROOF_OPTIONS.clone());
+                        let air = rv_tracer::air::RiscvAir::new(trace_info, inputs, PROOF_OPTIONS.clone());
                         let mut results = vec![BaseElement::ZERO; air.context().num_transition_constraints()];
                         let mut frame = EvaluationFrame::new(MAIN_TRACE_WIDTH);
                         table.read_main_frame(row, &mut frame);
@@ -73,10 +107,47 @@ macro_rules! generate_batched {
             quickcheck::quickcheck! {
                 #[allow(non_snake_case)]
                 fn [<test_ $op _prove_and_verify>](trace: Trace<[$op; 16]>) -> bool {
-                    let program = trace.program();
-                    let proof = prove::<Blake3_192>(trace.table(),PROOF_OPTIONS.clone(), program.clone());
-                    verify::<Blake3_192>(proof.unwrap(), program).is_ok()
+                    let inputs = Inputs {
+                        program: trace.program(),
+                        segment: Segment {
+                            segment_n: 0,
+                        },
+                    };
+                    let trace = trace.generate();
+                    let trace_length = trace.length();
+                    assert!(trace_length > 16);
+                    let proof = prove::<Blake3_192>(trace,PROOF_OPTIONS.clone(), inputs.clone()).unwrap();
+                    verify::<Blake3_192>(proof, inputs).is_ok()
 
+                }
+            }
+        }
+    };
+}
+
+macro_rules! generate_batched_splits {
+    ($op:ty) => {
+        paste::paste! {
+            quickcheck::quickcheck! {
+                #[allow(non_snake_case)]
+                fn [<test_ $op _prove_and_verify_splits>](trace: Trace<[$op; 16]>) -> bool {
+                    let traces = trace.generate_with_splits(256);
+                    println!("traces: {:?}", traces.len());
+
+                    for (i, segment) in traces.into_iter().enumerate() {
+                        let inputs = Inputs {
+                            program: trace.program(),
+                            segment: Segment {
+                                segment_n: i as u32,
+                            },
+                        };
+                        let proof = prove::<Blake3_192>(segment,PROOF_OPTIONS.clone(), inputs.clone()).unwrap();
+                        if !verify::<Blake3_192>(proof, inputs).is_ok() {
+                            return false;
+                        }
+                    }
+
+                    true
                 }
             }
         }
@@ -85,6 +156,7 @@ macro_rules! generate_batched {
 
 generate_tests!(Lui, RdBits, Uimm);
 generate_batched!(Lui);
+generate_batched_splits!(Lui);
 generate_tests!(Auipc, RdBits, Uimm, Pc);
 generate_tests!(Addi, RdBits, Rs1Bits, Imm, H0, H0Bin);
 generate_batched!(Addi);

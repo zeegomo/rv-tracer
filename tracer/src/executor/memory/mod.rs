@@ -11,6 +11,8 @@ use rvsim::MemoryAccess;
 use std::collections::BTreeMap;
 use winterfell::math::fields::f64::BaseElement;
 
+use crate::Felem;
+
 const MEM_CTX: u32 = 0x0;
 const REG_CTX: u32 = 0x1;
 pub const MEMORY_TRACE_WIDTH: usize = CHIPLETS_WIDTH;
@@ -273,13 +275,49 @@ impl Memory {
         trace_len: usize,
     ) -> ([Vec<BaseElement>; MEMORY_TRACE_WIDTH], AuxTraceBuilder) {
         assert!(self.trace_len() <= trace_len);
-        let trace = self
+        let mut trace = self
             .chiplets_trace
             .take()
             .unwrap()
             .into_trace(trace_len, NUM_RAND_ROWS);
 
+        use miden_processor::crypto::RandomCoin;
+        use miden_processor::crypto::RpoRandomCoin;
+        let mut rng = RpoRandomCoin::new(&[(1u32.into())]);
+        for i in trace_len - NUM_RAND_ROWS..trace_len {
+            for column in &mut trace.trace {
+                column[i] = rng.draw().expect("failed to draw a random value");
+            }
+        }
+
         (trace.trace, trace.aux_builder)
+    }
+
+    pub fn into_trace_with_splits(
+        self,
+        n_segments: usize,
+        segment_len: usize,
+    ) -> (
+        Vec<[Vec<BaseElement>; MEMORY_TRACE_WIDTH]>,
+        [Vec<Felem>; MEMORY_TRACE_WIDTH],
+        AuxTraceBuilder,
+    ) {
+        assert!(segment_len.is_power_of_two());
+        // the first segment can hold segment_len - 1 rows from the original execution (the last one in padding)
+        // while successive segments can only hold segment_len - 2 rows from the original execution (1 is used for padding and 1 is the last row of the previous segment)
+        let trace_len = n_segments * (segment_len - 2) + 1;
+        assert!(trace_len >= self.trace_len());
+
+        let trace_len = trace_len.next_power_of_two();
+
+        let (full_trace, aux_builder) = self.into_trace(trace_len);
+        let traces = super::utils::split_trace_with_padding::<MEMORY_TRACE_WIDTH, _>(
+            &full_trace,
+            n_segments,
+            segment_len,
+        );
+
+        (traces, full_trace, aux_builder)
     }
 
     pub fn trace_len(&self) -> usize {

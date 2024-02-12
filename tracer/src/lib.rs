@@ -5,10 +5,12 @@ pub mod trace;
 use executor::Program;
 use rvsim::elf::Elf32;
 use std::time::Instant;
+use trace_defs::MAIN_TRACE_WIDTH;
 use winterfell::ProverError;
 
 pub type Felem = winterfell::math::fields::f64::BaseElement;
 
+use air::{Inputs, Segment, SegmentConfig};
 use trace::TraceTable;
 use winterfell::{
     crypto::{DefaultRandomCoin, ElementHasher},
@@ -19,10 +21,16 @@ use winterfell::{
 pub fn prove<H: ElementHasher<BaseField = BaseElement>>(
     trace: TraceTable<BaseElement>,
     options: ProofOptions,
-    program: Program,
+    inputs: Inputs,
 ) -> Result<StarkProof, ProverError> {
+    println!("proving one");
     // generate the proof
-    let prover = prover::RiscvProver::<H>::new(options, program);
+    // let last = trace.length() - 1;
+    for col in 0..MAIN_TRACE_WIDTH {
+        print!("{} ", trace.get(col, 0));
+    }
+    println!();
+    let prover = prover::RiscvProver::<H>::new(options, inputs);
     let now = Instant::now();
     let proof = prover.prove(trace)?;
     log::debug!("Generated proof in {} ms", now.elapsed().as_millis());
@@ -32,7 +40,8 @@ pub fn prove<H: ElementHasher<BaseField = BaseElement>>(
 pub fn prove_from_elf<H: ElementHasher<BaseField = BaseElement>>(
     elf: Elf32,
     options: ProofOptions,
-) -> Result<StarkProof, ProverError> {
+    segment_config: SegmentConfig,
+) -> Result<Vec<StarkProof>, ProverError> {
     log::debug!(
         "Generating proof for riscv program\n\
         ---------------------"
@@ -40,26 +49,37 @@ pub fn prove_from_elf<H: ElementHasher<BaseField = BaseElement>>(
     // generate execution trace
     let now = Instant::now();
     let program: Program = (&elf).into();
-    let trace = executor::exec(&program);
+    let traces = executor::exec(&program, segment_config);
 
-    let trace_width = trace.get_info().width();
-    let trace_length = trace.length();
+    let trace_width = traces[0].get_info().width();
+    let trace_length = traces[0].length();
     log::debug!(
         "Generated execution trace of {} registers and 2^{} steps in {} ms",
         trace_width,
-        trace_length.ilog2(),
+        (trace_length * traces.len()).ilog2(),
         now.elapsed().as_millis()
     );
-
-    prove::<H>(trace, options, program)
+    Ok(traces
+        .into_iter()
+        .enumerate()
+        .map(|(segment_n, trace)| {
+            let inputs = Inputs {
+                program: program.clone(),
+                segment: Segment {
+                    segment_n: segment_n as u32,
+                },
+            };
+            prove::<H>(trace, options.clone(), inputs)
+        })
+        .collect::<Result<Vec<_>, _>>()?)
 }
 
 pub fn verify<H: ElementHasher<BaseField = BaseElement>>(
     proof: StarkProof,
-    program: Program,
+    inputs: Inputs,
 ) -> Result<(), VerifierError> {
     let now = Instant::now();
-    winterfell::verify::<air::RiscvAir, H, DefaultRandomCoin<H>>(proof, program)?;
+    winterfell::verify::<air::RiscvAir, H, DefaultRandomCoin<H>>(proof, inputs)?;
     log::debug!("Verified proof in {} ms", now.elapsed().as_millis());
     Ok(())
 }
