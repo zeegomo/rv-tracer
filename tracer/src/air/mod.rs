@@ -156,8 +156,6 @@ impl Air for RiscvAir {
 
         let mut aux_degrees = memory::get_aux_transition_constraint_degrees();
         aux_degrees.extend(range::get_aux_transition_constraint_degrees());
-
-        println!("n aux constraints: {}", aux_degrees.len());
         let aux_assertions = Self::get_n_aux_assertions_for_segment(&inputs, &trace_info);
 
         Self {
