@@ -2,8 +2,12 @@ mod common;
 use common::ops::*;
 use common::perturb::*;
 use common::*;
+use quickcheck::Arbitrary;
 use quickcheck::TestResult;
-use rv_tracer::{prove, verify};
+use rv_tracer::{
+    air::{Inputs, Segment},
+    prove, verify,
+};
 use std::any::TypeId;
 use trace_defs::MAIN_TRACE_WIDTH;
 use winterfell::{
@@ -18,10 +22,17 @@ macro_rules! generate_tests {
                 #[allow(non_snake_case)]
                 fn [<test_ $op _ok>](trace: Trace<$op>) -> bool {
                     let row = <Trace<$op>>::op_start();
-                    let program = trace.program();
-                    let table = trace.table();
+                    let table = trace.generate();
+                    let inputs = Inputs {
+                        program: trace.program(),
+                        segment: Segment {
+                            segment_n: 0,
+                        },
+                        n_cycles: table.length() - 1,
+                    };
+
                     let trace_info = table.get_info();
-                    let air = rv_tracer::air::RiscvAir::new(trace_info, program, PROOF_OPTIONS.clone());
+                    let air = rv_tracer::air::RiscvAir::new(trace_info, inputs, PROOF_OPTIONS.clone());
                     let mut results = vec![BaseElement::ZERO; air.context().num_transition_constraints()];
                     let mut frame = EvaluationFrame::new(MAIN_TRACE_WIDTH);
                     table.read_main_frame(row, &mut frame);
@@ -29,19 +40,55 @@ macro_rules! generate_tests {
                     results == vec![BaseElement::ZERO; air.context().num_transition_constraints()]
                 }
 
+                #[allow(non_snake_case)]
+                fn [<test_ $op _ok_half_split>](trace: Trace<$op>) -> bool {
+                    let row = <Trace<$op>>::op_start();
+                    let n_cycles = trace.generate().length() - 1;
+                    let split_size = (n_cycles + 1) /  2;
+                    let tables = trace.generate_with_splits(split_size as u32);
+                    assert_eq!(tables.len(), 2);
+
+                    for table in tables {
+                        let inputs = Inputs {
+                            program: trace.program(),
+                            segment: Segment {
+                                segment_n: 0,
+                            },
+                            n_cycles
+                        };
+
+                        let trace_info = table.get_info();
+                        let air = rv_tracer::air::RiscvAir::new(trace_info, inputs, PROOF_OPTIONS.clone());
+                        let mut results = vec![BaseElement::ZERO; air.context().num_transition_constraints()];
+                        let mut frame = EvaluationFrame::new(MAIN_TRACE_WIDTH);
+                        table.read_main_frame(row, &mut frame);
+                        air.evaluate_transition(&frame, &[], &mut results);
+                        if results != vec![BaseElement::ZERO; air.context().num_transition_constraints()] {
+                            return false;
+                        }
+                    }
+                    true
+                }
+
                 $(
                     #[allow(non_snake_case)]
                     fn [<test_ $op _ $perturb _neg>](trace: PerturbedTrace<$op, $perturb>) -> TestResult {
-                        if !trace.op().discard_perturb(TypeId::of::<$perturb>()) {
+                        if trace.op().discard_perturb(TypeId::of::<$perturb>()) {
                             return TestResult::discard();
                         }
 
                         let row = <PerturbedTrace<$op, $perturb>>::op_start();
-                        let program = trace.program();
+                        let inputs = Inputs {
+                            program: trace.program(),
+                            segment: Segment {
+                                segment_n: 0,
+                            },
+                            n_cycles: trace.table.length() - 1,
+                        };
                         let table = trace.table;
                         let trace_info = table.get_info();
 
-                        let air = rv_tracer::air::RiscvAir::new(trace_info, program, PROOF_OPTIONS.clone());
+                        let air = rv_tracer::air::RiscvAir::new(trace_info, inputs, PROOF_OPTIONS.clone());
                         let mut results = vec![BaseElement::ZERO; air.context().num_transition_constraints()];
                         let mut frame = EvaluationFrame::new(MAIN_TRACE_WIDTH);
                         table.read_main_frame(row, &mut frame);
@@ -73,16 +120,25 @@ macro_rules! generate_batched {
             quickcheck::quickcheck! {
                 #[allow(non_snake_case)]
                 fn [<test_ $op _prove_and_verify>](trace: Trace<[$op; 16]>) -> bool {
-                    let program = trace.program();
-                    let proof = prove::<Blake3_192>(trace.table(),PROOF_OPTIONS.clone(), program.clone());
-                    verify::<Blake3_192>(proof.unwrap(), program).is_ok()
+                    let tt = trace.generate();
+                    let inputs = Inputs {
+                        program: trace.program(),
+                        segment: Segment {
+                            segment_n: 0,
+                        },
+                        n_cycles: tt.length() - 1,
+                    };
+
+                    let trace_length = tt.length();
+                    assert!(trace_length > 16);
+                    let proof = prove::<Blake3_192>(tt, PROOF_OPTIONS.clone(), inputs.clone()).unwrap();
+                    verify::<Blake3_192>(proof, inputs).is_ok()
 
                 }
             }
         }
     };
 }
-
 generate_tests!(Lui, RdBits, Uimm);
 generate_batched!(Lui);
 generate_tests!(Auipc, RdBits, Uimm, Pc);
@@ -95,3 +151,38 @@ generate_batched!(Slti);
 generate_tests!(Add, RdBits, Rs1Bits, Rs2Bits, H0, H0Bin);
 generate_batched!(Add);
 generate_tests!(Bne, Rs1Bits, Rs2Bits, H0);
+
+#[derive(Clone, Copy, Debug)]
+struct SplitSize(u32);
+
+impl Arbitrary for SplitSize {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        let po2 = core::cmp::max(3, u8::arbitrary(g) % 15);
+        SplitSize(1 << po2)
+    }
+}
+
+quickcheck::quickcheck! {
+    #[allow(non_snake_case)]
+    fn test_prove_and_verify_splits(trace: Trace<[Add; 16]>, split_size: SplitSize) -> bool {
+        let split_size = core::cmp::min(split_size.0, trace.generate().length().next_power_of_two() as u32);
+        let traces = trace.generate_with_splits(split_size);
+        let n_cycles = traces.iter().map(|t| t.length() - 1).sum();
+
+        for (i, segment) in traces.into_iter().enumerate() {
+            let inputs = Inputs {
+                program: trace.program(),
+                segment: Segment {
+                    segment_n: i as u32,
+                },
+                n_cycles,
+            };
+            let proof = prove::<Blake3_192>(segment,PROOF_OPTIONS.clone(), inputs.clone()).unwrap();
+            if !verify::<Blake3_192>(proof, inputs).is_ok() {
+                return false;
+            }
+        }
+
+        true
+    }
+}

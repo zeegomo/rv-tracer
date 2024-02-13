@@ -1,5 +1,6 @@
 mod cpu;
 mod memory;
+mod segment;
 
 use miden_air::constraints::range;
 use winterfell::{
@@ -7,31 +8,125 @@ use winterfell::{
     Air, AirContext, Assertion, AuxTraceRandElements, EvaluationFrame, ProofOptions, TraceInfo,
 };
 pub type BaseField = winterfell::math::fields::f64::BaseElement;
+pub use segment::{Segment, SegmentConfig};
 
 const MAX_DEG: usize = 16;
+const NUM_TRANSITION_EXEMPTIONS: usize = 2;
 
 pub struct RiscvAir {
     context: AirContext<BaseElement>,
-    program: Program,
+    inputs: Inputs,
+}
+
+#[derive(Clone, Debug)]
+pub struct Inputs {
+    // the program that was executed
+    pub program: Program,
+    // the segment of the full execution this proof is for
+    pub segment: Segment,
+    // number of cycles this execution took
+    pub n_cycles: usize,
+}
+
+impl<E: FieldElement> ToElements<E> for Inputs {
+    fn to_elements(&self) -> Vec<E> {
+        let mut result = self.program.to_elements();
+        result.extend::<Vec<E>>(self.segment.to_elements());
+        result
+    }
 }
 
 use crate::executor::Program;
-use trace_defs::{AUX_TRACE_WIDTH, BODY, INSN, LOADING, MAIN_TRACE_WIDTH, PC};
+use trace_defs::{AUX_DUMMY, AUX_TRACE_WIDTH, BODY, H_3, INSN, LOADING, MAIN_TRACE_WIDTH, PC};
 
 impl RiscvAir {
     /// Returns last step of the execution trace.
     pub fn last_step(&self) -> usize {
         self.trace_length() - self.context().num_transition_exemptions()
     }
+
+    fn get_n_assertions_for_segment(inputs: &Inputs, trace_info: &TraceInfo) -> usize {
+        // TODO: improve efficiency
+        Self::get_assertions_for_segment(inputs, trace_info).len()
+    }
+
+    fn get_n_aux_assertions_for_segment(inputs: &Inputs, trace_info: &TraceInfo) -> usize {
+        // TODO: improve efficiency…
+        Self::get_aux_assertions_for_segment::<BaseElement>(inputs, trace_info).len()
+    }
+
+    fn get_assertions(inputs: &Inputs) -> Vec<Assertion<BaseElement>> {
+        let mut res = Vec::new();
+        let mut program_load = <dyn ToElements<BaseElement>>::to_elements(&inputs.program);
+        let pc = program_load.remove(0);
+        let n_insn = program_load.len();
+
+        res.push(Assertion::single(LOADING, 0, BaseElement::ONE));
+        for (i, elem) in program_load.iter().enumerate() {
+            // TODO: check we are in the loading phase
+            res.push(Assertion::single(INSN, i, *elem));
+        }
+        res.push(Assertion::single(PC, n_insn, pc));
+        // after loading we move to execution
+        res.push(Assertion::single(BODY, n_insn, BaseElement::ONE));
+        res.push(Assertion::single(H_3, 0, BaseElement::ZERO));
+
+        res
+    }
+
+    fn get_aux_assertions<E: FieldElement>(inputs: &Inputs) -> Vec<Assertion<E>> {
+        let mut result = Vec::new();
+
+        memory::get_aux_assertions_first_step(&mut result);
+        range::get_aux_assertions_first_step(&mut result);
+
+        let last_step = inputs.n_cycles;
+        memory::get_aux_assertions_last_step(&mut result, last_step);
+        range::get_aux_assertions_last_step(&mut result, last_step);
+
+        result
+    }
+
+    fn get_assertions_for_segment(
+        inputs: &Inputs,
+        trace_info: &TraceInfo,
+    ) -> Vec<Assertion<BaseElement>> {
+        let mut assertions = inputs.segment.filter_assertions_for_segment(
+            trace_info.length() as u32,
+            &Self::get_assertions(inputs),
+        );
+        // Winterfell wants at least 1 assertions per segment, in case this segment does not have one from
+        // execution constraints, we insert a dummy one
+        if assertions.is_empty() {
+            assertions.push(Assertion::single(H_3, 0, BaseElement::ZERO))
+        }
+        assertions
+    }
+
+    fn get_aux_assertions_for_segment<E: FieldElement>(
+        inputs: &Inputs,
+        trace_info: &TraceInfo,
+    ) -> Vec<Assertion<E>> {
+        let mut assertions = inputs.segment.filter_assertions_for_segment(
+            trace_info.length() as u32,
+            &Self::get_aux_assertions::<E>(inputs),
+        );
+        // Winterfell requires at least 1 assertions per segment, in case this segment does not have one from
+        // execution constraints, we insert a dummy one
+        if assertions.is_empty() {
+            assertions.push(Assertion::single(AUX_DUMMY, 0, E::ZERO))
+        }
+        assertions
+    }
 }
 
 impl Air for RiscvAir {
     type BaseField = BaseElement;
-    type PublicInputs = Program;
+    type PublicInputs = Inputs;
 
     // CONSTRUCTOR
     // --------------------------------------------------------------------------------------------
-    fn new(trace_info: TraceInfo, program: Program, options: ProofOptions) -> Self {
+    fn new(trace_info: TraceInfo, inputs: Inputs, options: ProofOptions) -> Self {
         assert_eq!(MAIN_TRACE_WIDTH + AUX_TRACE_WIDTH, trace_info.width());
 
         let mut degrees = Vec::new();
@@ -54,13 +149,12 @@ impl Air for RiscvAir {
                 degree
             );
         }
-        // One assertion for each instruction of the program binary + 1 for the initial pc value + 2
-        // to control the start of the loading and execution phases.
-        let num_assertions = <dyn ToElements<BaseElement>>::to_elements(&program).len() + 2;
+
+        let num_assertions = Self::get_n_assertions_for_segment(&inputs, &trace_info);
 
         let mut aux_degrees = memory::get_aux_transition_constraint_degrees();
         aux_degrees.extend(range::get_aux_transition_constraint_degrees());
-        let aux_assertions = memory::NUM_AUX_ASSERTIONS + range::NUM_AUX_ASSERTIONS;
+        let aux_assertions = Self::get_n_aux_assertions_for_segment(&inputs, &trace_info);
 
         Self {
             context: AirContext::new_multi_segment(
@@ -71,8 +165,8 @@ impl Air for RiscvAir {
                 aux_assertions,
                 options,
             )
-            .set_num_transition_exemptions(2),
-            program,
+            .set_num_transition_exemptions(NUM_TRANSITION_EXEMPTIONS),
+            inputs,
         }
     }
 
@@ -109,21 +203,7 @@ impl Air for RiscvAir {
     }
 
     fn get_assertions(&self) -> Vec<Assertion<Self::BaseField>> {
-        let mut res = Vec::with_capacity(self.context().num_assertions());
-        let mut program_load = <dyn ToElements<BaseElement>>::to_elements(&self.program);
-        let pc = program_load.remove(0);
-        let n_insn = program_load.len();
-
-        res.push(Assertion::single(LOADING, 0, BaseElement::ONE));
-        for (i, elem) in program_load.iter().enumerate() {
-            // TODO: check we are in the loading phase
-            res.push(Assertion::single(INSN, i, *elem));
-        }
-        res.push(Assertion::single(PC, n_insn, pc));
-        // after loading we move to execution
-        res.push(Assertion::single(BODY, n_insn, BaseElement::ONE));
-
-        res
+        Self::get_assertions_for_segment(&self.inputs, self.trace_info())
     }
 
     fn evaluate_aux_transition<F, E>(
@@ -146,15 +226,6 @@ impl Air for RiscvAir {
         &self,
         _aux_rand_elements: &AuxTraceRandElements<E>,
     ) -> Vec<Assertion<E>> {
-        let mut result: Vec<Assertion<E>> = Vec::new();
-
-        memory::get_aux_assertions_first_step(&mut result);
-        range::get_aux_assertions_first_step(&mut result);
-
-        let last_step = self.last_step();
-        memory::get_aux_assertions_last_step(&mut result, last_step);
-        range::get_aux_assertions_last_step(&mut result, last_step);
-
-        result
+        Self::get_aux_assertions_for_segment(&self.inputs, self.trace_info())
     }
 }

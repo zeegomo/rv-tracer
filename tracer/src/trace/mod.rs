@@ -1,6 +1,7 @@
 use miden_processor::{chiplets, range};
 use trace_defs::*;
 
+use std::rc::Rc;
 use winterfell::{
     math::{fields::f64::BaseElement, FieldElement, StarkField},
     Air, AuxTraceRandElements, ColMatrix, EvaluationFrame, Trace, TraceInfo, TraceLayout,
@@ -12,28 +13,66 @@ const NUM_RAND_ROWS: usize = 1;
 pub struct TraceTable<E: StarkField> {
     inner: winterfell::TraceTable<E>,
     layout: TraceLayout,
-    aux_builder: AuxTraceBuilder,
+    aux_builder: AuxTraceBuilder<E>,
 }
 
-pub struct AuxTraceBuilder {
+#[derive(Clone)]
+pub struct AuxTraceBuilder<E: StarkField> {
     mem: chiplets::aux_trace::AuxTraceBuilder,
     range: range::AuxTraceBuilder,
+    full_trace: Option<Rc<winterfell::TraceTable<E>>>,
+    // if this trace is segment of a bigger trace, we build the full columns and then skip the first `skip` elements
+    // and take the next `length` elements
+    skip: Option<usize>,
+    length: Option<usize>,
 }
 
-impl AuxTraceBuilder {
+impl<E: StarkField> AuxTraceBuilder<E> {
     pub fn new(mem: chiplets::aux_trace::AuxTraceBuilder, range: range::AuxTraceBuilder) -> Self {
-        Self { mem, range }
+        Self {
+            mem,
+            range,
+            full_trace: None,
+            skip: None,
+            length: None,
+        }
+    }
+
+    pub fn segmented(
+        mut self,
+        full_trace: Rc<winterfell::TraceTable<E>>,
+        segment_n: usize,
+        segment_len: usize,
+    ) -> Self {
+        self.full_trace = Some(full_trace);
+        self.skip = Some((segment_len - 2) * segment_n);
+        self.length = Some(segment_len);
+        self
     }
 }
 
 impl<Field: StarkField> TraceTable<Field> {
-    pub fn new(trace: Vec<Vec<Field>>, aux_builder: AuxTraceBuilder) -> Self {
+    pub fn new(trace: Vec<Vec<Field>>, aux_builder: AuxTraceBuilder<Field>) -> Self {
         let layout = TraceLayout::new(MAIN_TRACE_WIDTH, [AUX_TRACE_WIDTH; 1], [NUM_ALPHA_ELEMS; 1]);
         Self {
             inner: winterfell::TraceTable::init(trace),
             layout,
             aux_builder,
         }
+    }
+}
+
+impl<E: StarkField> std::fmt::Display for TraceTable<E> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> Result<(), core::fmt::Error> {
+        writeln!(f, "TraceTable")?;
+        let length = self.inner.get_column(0).len();
+        for i in 0..MAIN_TRACE_WIDTH {
+            for j in 0..length {
+                write!(f, "{} ", self.inner.get(i, j))?;
+            }
+            writeln!(f)?;
+        }
+        Ok(())
     }
 }
 
@@ -49,7 +88,7 @@ impl Trace for TraceTable<BaseElement> {
     }
 
     fn meta(&self) -> &[u8] {
-        self.inner.meta()
+        &[]
     }
 
     fn main_segment(&self) -> &ColMatrix<Self::BaseField> {
@@ -69,24 +108,47 @@ impl Trace for TraceTable<BaseElement> {
             return None;
         }
 
+        let main_segment = if self.aux_builder.full_trace.is_some() {
+            self.aux_builder.full_trace.as_ref().unwrap().main_segment()
+        } else {
+            self.main_segment()
+        };
+
         // add the running product columns for the chiplets
         let bus = self
             .aux_builder
             .mem
-            .build_memory_aux_column(self.main_segment(), rand_elements);
+            .build_memory_aux_column(main_segment, rand_elements);
 
         // add the range check columns
         let range = self
             .aux_builder
             .range
-            .build_aux_columns(self.main_segment(), rand_elements);
+            .build_aux_columns(main_segment, rand_elements);
 
+        let dummy_column = vec![E::ZERO; self.length()];
         let mut aux_columns = vec![bus].into_iter().chain(range).collect::<Vec<_>>();
         // // inject random values into the last rows of the trace
         use miden_processor::crypto::RandomCoin;
         use miden_processor::crypto::RpoRandomCoin;
         let mut rng = RpoRandomCoin::new(&[(1u32.into())]);
 
+        for column in &mut aux_columns {
+            if let Some(skip) = self.aux_builder.skip {
+                *column = column
+                    .iter()
+                    .skip(skip)
+                    .take(self.aux_builder.length.unwrap())
+                    .copied()
+                    .collect();
+
+                if column.len() < self.length() {
+                    column.extend(core::iter::repeat(E::ONE).take(self.length() - column.len()));
+                }
+            }
+        }
+
+        aux_columns.push(dummy_column);
         // inject random values into the last rows of the trace
         for i in self.length() - NUM_RAND_ROWS..self.length() {
             for column in aux_columns.iter_mut() {
@@ -123,7 +185,6 @@ impl Trace for TraceTable<BaseElement> {
         A: Air<BaseField = Self::BaseField>,
         E: FieldElement<BaseField = Self::BaseField>,
     {
-        // println!("{:?}", air.get_assertions());
         // first, check assertions against the main segment of the execution trace
         for assertion in air.get_assertions() {
             assertion.apply(self.length(), |step, value| {
@@ -140,13 +201,17 @@ impl Trace for TraceTable<BaseElement> {
     }
 }
 
-impl<Field: StarkField> TraceTable<Field> {
+impl TraceTable<BaseElement> {
     /// Reads a single row from this execution trace into the provided target.
-    pub fn read_row_into(&self, step: usize, target: &mut [Field]) {
+    pub fn read_row_into(&self, step: usize, target: &mut [BaseElement]) {
         self.inner.read_row_into(step, target);
     }
 
-    pub fn update_row(&mut self, step: usize, state: &[Field]) {
+    pub fn get(&self, column: usize, step: usize) -> BaseElement {
+        self.inner.get(column, step)
+    }
+
+    pub fn update_row(&mut self, step: usize, state: &[BaseElement]) {
         self.inner.update_row(step, state);
     }
 }

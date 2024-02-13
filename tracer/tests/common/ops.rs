@@ -1,3 +1,5 @@
+use self::perturb::H0;
+
 use super::*;
 use quickcheck::{Arbitrary as _, Gen};
 use std::any::TypeId;
@@ -27,7 +29,9 @@ impl Arbitrary for Lui {
 
 impl Op for Lui {
     fn execute(&self, state: CpuState) -> TraceTable<BaseElement> {
-        exec(&self.to_program(state))
+        exec(&self.to_program(state), SegmentConfig::Single)
+            .pop()
+            .unwrap()
     }
 
     fn to_program(&self, state: CpuState) -> Program {
@@ -69,7 +73,9 @@ impl Arbitrary for Auipc {
 
 impl Op for Auipc {
     fn execute(&self, state: CpuState) -> TraceTable<BaseElement> {
-        exec(&self.to_program(state))
+        exec(&self.to_program(state), SegmentConfig::Single)
+            .pop()
+            .unwrap()
     }
 
     fn to_program(&self, state: CpuState) -> Program {
@@ -121,7 +127,9 @@ impl Arbitrary for Addi {
 
 impl Op for Addi {
     fn execute(&self, state: CpuState) -> TraceTable<BaseElement> {
-        exec(&self.to_program(state))
+        exec(&self.to_program(state), SegmentConfig::Single)
+            .pop()
+            .unwrap()
     }
 
     fn to_program(&self, mut state: CpuState) -> Program {
@@ -187,7 +195,9 @@ impl Arbitrary for Add {
 
 impl Op for Add {
     fn execute(&self, state: CpuState) -> TraceTable<BaseElement> {
-        exec(&self.to_program(state))
+        exec(&self.to_program(state), SegmentConfig::Single)
+            .pop()
+            .unwrap()
     }
 
     fn to_program(&self, mut state: CpuState) -> Program {
@@ -241,7 +251,9 @@ impl Arbitrary for Jal {
 
 impl Op for Jal {
     fn execute(&self, state: CpuState) -> TraceTable<BaseElement> {
-        exec(&self.to_program(state))
+        exec(&self.to_program(state), SegmentConfig::Single)
+            .pop()
+            .unwrap()
     }
 
     fn to_program(&self, state: CpuState) -> Program {
@@ -318,7 +330,9 @@ impl Arbitrary for Jalr {
 
 impl Op for Jalr {
     fn execute(&self, state: CpuState) -> TraceTable<BaseElement> {
-        exec(&self.to_program(state))
+        exec(&self.to_program(state), SegmentConfig::Single)
+            .pop()
+            .unwrap()
     }
 
     fn to_program(&self, mut state: CpuState) -> Program {
@@ -373,7 +387,9 @@ impl Arbitrary for Slti {
 
 impl Op for Slti {
     fn execute(&self, state: CpuState) -> TraceTable<BaseElement> {
-        exec(&self.to_program(state))
+        exec(&self.to_program(state), SegmentConfig::Single)
+            .pop()
+            .unwrap()
     }
 
     fn to_program(&self, mut state: CpuState) -> Program {
@@ -458,7 +474,9 @@ impl Arbitrary for Bne {
 
 impl Op for Bne {
     fn execute(&self, state: CpuState) -> TraceTable<BaseElement> {
-        exec(&self.to_program(state))
+        exec(&self.to_program(state), SegmentConfig::Single)
+            .pop()
+            .unwrap()
     }
 
     fn to_program(&self, mut state: CpuState) -> Program {
@@ -478,9 +496,9 @@ impl Op for Bne {
     }
 
     fn discard_perturb(&self, id: TypeId) -> bool {
-        if id == TypeId::of::<String>() {
+        if id == TypeId::of::<H0>() {
             // discard permutations of H0 when it's not used (i.e. rs1 == rs2)
-            return self.rs1 == self.rs2;
+            return self.rs1_value == self.rs2_value;
         }
         false
     }

@@ -1,7 +1,7 @@
 pub const CPU_TRACE_WIDTH: usize = RD_ZERO + 1;
 pub const MEMORY_TRACE_WIDTH: usize = CHIPLETS_WIDTH;
 pub const MAIN_TRACE_WIDTH: usize = CHIPLETS_WIDTH + CPU_TRACE_WIDTH + RANGE_WIDTH;
-pub const AUX_TRACE_WIDTH: usize = 2;
+pub const AUX_TRACE_WIDTH: usize = 3;
 
 // ------------------------CPU trace------------------------
 pub const CYCLE: usize = 0;
@@ -46,3 +46,9 @@ pub const CHIPLETS_WIDTH: usize = 10;
 // ------------------------Range check------------------------
 pub const RANGE_START: usize = CHIPLETS_START + CHIPLETS_WIDTH;
 pub const RANGE_WIDTH: usize = 2;
+
+// ------------------------Aux trace -------------------------
+// Winterfell requires an assertion for each segment in the aux trace.
+// Since we can't predicat values of aux columns in the middle of the computation
+// we need to introduce another columsn which is always zero
+pub const AUX_DUMMY: usize = 2;
