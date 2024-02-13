@@ -293,6 +293,7 @@ impl Memory {
         (trace.trace, trace.aux_builder)
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn into_trace_with_splits(
         self,
         n_segments: usize,

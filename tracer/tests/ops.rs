@@ -2,6 +2,7 @@ mod common;
 use common::ops::*;
 use common::perturb::*;
 use common::*;
+use quickcheck::Arbitrary;
 use quickcheck::TestResult;
 use rv_tracer::{
     air::{Inputs, Segment},
@@ -21,13 +22,15 @@ macro_rules! generate_tests {
                 #[allow(non_snake_case)]
                 fn [<test_ $op _ok>](trace: Trace<$op>) -> bool {
                     let row = <Trace<$op>>::op_start();
+                    let table = trace.generate();
                     let inputs = Inputs {
                         program: trace.program(),
                         segment: Segment {
                             segment_n: 0,
                         },
+                        n_cycles: table.length() - 1,
                     };
-                    let table = trace.generate();
+
                     let trace_info = table.get_info();
                     let air = rv_tracer::air::RiscvAir::new(trace_info, inputs, PROOF_OPTIONS.clone());
                     let mut results = vec![BaseElement::ZERO; air.context().num_transition_constraints()];
@@ -40,13 +43,15 @@ macro_rules! generate_tests {
                 #[allow(non_snake_case)]
                 fn [<test_ $op _ok_split>](trace: Trace<$op>) -> bool {
                     let row = <Trace<$op>>::op_start();
+                    let table = trace.generate();
                     let inputs = Inputs {
                         program: trace.program(),
                         segment: Segment {
                             segment_n: 0,
                         },
+                        n_cycles: table.length() - 1,
                     };
-                    let table = trace.generate();
+
                     let trace_info = table.get_info();
                     let air = rv_tracer::air::RiscvAir::new(trace_info, inputs, PROOF_OPTIONS.clone());
                     let mut results = vec![BaseElement::ZERO; air.context().num_transition_constraints()];
@@ -71,6 +76,7 @@ macro_rules! generate_tests {
                             segment: Segment {
                                 segment_n: 0,
                             },
+                            n_cycles: trace.table.length() - 1,
                         };
                         let table = trace.table;
                         let trace_info = table.get_info();
@@ -107,16 +113,18 @@ macro_rules! generate_batched {
             quickcheck::quickcheck! {
                 #[allow(non_snake_case)]
                 fn [<test_ $op _prove_and_verify>](trace: Trace<[$op; 16]>) -> bool {
+                    let tt = trace.generate();
                     let inputs = Inputs {
                         program: trace.program(),
                         segment: Segment {
                             segment_n: 0,
                         },
+                        n_cycles: tt.length() - 1,
                     };
-                    let trace = trace.generate();
-                    let trace_length = trace.length();
+
+                    let trace_length = tt.length();
                     assert!(trace_length > 16);
-                    let proof = prove::<Blake3_192>(trace,PROOF_OPTIONS.clone(), inputs.clone()).unwrap();
+                    let proof = prove::<Blake3_192>(tt, PROOF_OPTIONS.clone(), inputs.clone()).unwrap();
                     verify::<Blake3_192>(proof, inputs).is_ok()
 
                 }
@@ -130,8 +138,9 @@ macro_rules! generate_batched_splits {
         paste::paste! {
             quickcheck::quickcheck! {
                 #[allow(non_snake_case)]
-                fn [<test_ $op _prove_and_verify_splits>](trace: Trace<[$op; 16]>) -> bool {
-                    let traces = trace.generate_with_splits(256);
+                fn [<test_ $op _prove_and_verify_splits>](trace: Trace<[$op; 16]>, split_size: SplitSize) -> bool {
+                    let traces = trace.generate_with_splits(split_size.0);
+                    let n_cycles = traces.iter().map(|t| t.length() - 1).sum();
                     println!("traces: {:?}", traces.len());
 
                     for (i, segment) in traces.into_iter().enumerate() {
@@ -140,6 +149,7 @@ macro_rules! generate_batched_splits {
                             segment: Segment {
                                 segment_n: i as u32,
                             },
+                            n_cycles,
                         };
                         let proof = prove::<Blake3_192>(segment,PROOF_OPTIONS.clone(), inputs.clone()).unwrap();
                         if !verify::<Blake3_192>(proof, inputs).is_ok() {
@@ -167,3 +177,13 @@ generate_batched!(Slti);
 generate_tests!(Add, RdBits, Rs1Bits, Rs2Bits, H0, H0Bin);
 generate_batched!(Add);
 generate_tests!(Bne, Rs1Bits, Rs2Bits, H0);
+
+#[derive(Clone, Copy, Debug)]
+struct SplitSize(u32);
+
+impl Arbitrary for SplitSize {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        let po2 = core::cmp::max(3, u8::arbitrary(g) % 15);
+        SplitSize(1 << po2)
+    }
+}

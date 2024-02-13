@@ -24,6 +24,8 @@ pub struct Inputs {
     pub program: Program,
     // the segment of the full execution this proof is for
     pub segment: Segment,
+    // number of cycles this execution took
+    pub n_cycles: usize,
 }
 
 impl<E: FieldElement> ToElements<E> for Inputs {
@@ -72,16 +74,13 @@ impl RiscvAir {
         res
     }
 
-    fn get_aux_assertions<E: FieldElement>(
-        _inputs: &Inputs,
-        trace_info: &TraceInfo,
-    ) -> Vec<Assertion<E>> {
+    fn get_aux_assertions<E: FieldElement>(inputs: &Inputs) -> Vec<Assertion<E>> {
         let mut result = Vec::new();
 
         memory::get_aux_assertions_first_step(&mut result);
         range::get_aux_assertions_first_step(&mut result);
 
-        let last_step = trace_info.length() - NUM_TRANSITION_EXEMPTIONS;
+        let last_step = inputs.n_cycles;
         memory::get_aux_assertions_last_step(&mut result, last_step);
         range::get_aux_assertions_last_step(&mut result, last_step);
 
@@ -96,7 +95,7 @@ impl RiscvAir {
             trace_info.length() as u32,
             &Self::get_assertions(inputs),
         );
-        let mut assertions = vec![];
+        // let mut assertions = vec![];
         // Winterfell wants at least 1 assertions per segment, in case this segment does not have one from
         // execution constraints, we insert a dummy one
         if assertions.is_empty() {
@@ -111,9 +110,9 @@ impl RiscvAir {
     ) -> Vec<Assertion<E>> {
         let mut assertions = inputs.segment.filter_assertions_for_segment(
             trace_info.length() as u32,
-            &Self::get_aux_assertions::<E>(inputs, trace_info),
+            &Self::get_aux_assertions::<E>(inputs),
         );
-        let mut assertions = vec![];
+        // let mut assertions = vec![];
         // Winterfell requires at least 1 assertions per segment, in case this segment does not have one from
         // execution constraints, we insert a dummy one
         if assertions.is_empty() {

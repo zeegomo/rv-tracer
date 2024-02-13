@@ -5,7 +5,6 @@ pub mod trace;
 use executor::Program;
 use rvsim::elf::Elf32;
 use std::time::Instant;
-use trace_defs::MAIN_TRACE_WIDTH;
 use winterfell::ProverError;
 
 pub type Felem = winterfell::math::fields::f64::BaseElement;
@@ -23,13 +22,6 @@ pub fn prove<H: ElementHasher<BaseField = BaseElement>>(
     options: ProofOptions,
     inputs: Inputs,
 ) -> Result<StarkProof, ProverError> {
-    println!("proving one");
-    // generate the proof
-    // let last = trace.length() - 1;
-    for col in 0..MAIN_TRACE_WIDTH {
-        print!("{} ", trace.get(col, 0));
-    }
-    println!();
     let prover = prover::RiscvProver::<H>::new(options, inputs);
     let now = Instant::now();
     let proof = prover.prove(trace)?;
@@ -41,7 +33,7 @@ pub fn prove_from_elf<H: ElementHasher<BaseField = BaseElement>>(
     elf: Elf32,
     options: ProofOptions,
     segment_config: SegmentConfig,
-) -> Result<Vec<StarkProof>, ProverError> {
+) -> Result<(Vec<StarkProof>, usize), ProverError> {
     log::debug!(
         "Generating proof for riscv program\n\
         ---------------------"
@@ -59,7 +51,8 @@ pub fn prove_from_elf<H: ElementHasher<BaseField = BaseElement>>(
         (trace_length * traces.len()).ilog2(),
         now.elapsed().as_millis()
     );
-    Ok(traces
+    let n_cycles = traces.iter().map(|t| t.length() - 1).sum::<usize>();
+    let proofs = traces
         .into_iter()
         .enumerate()
         .map(|(segment_n, trace)| {
@@ -68,10 +61,12 @@ pub fn prove_from_elf<H: ElementHasher<BaseField = BaseElement>>(
                 segment: Segment {
                     segment_n: segment_n as u32,
                 },
+                n_cycles,
             };
             prove::<H>(trace, options.clone(), inputs)
         })
-        .collect::<Result<Vec<_>, _>>()?)
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok((proofs, n_cycles))
 }
 
 pub fn verify<H: ElementHasher<BaseField = BaseElement>>(

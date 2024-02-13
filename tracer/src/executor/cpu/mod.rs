@@ -284,7 +284,6 @@ impl Cpu {
         let trace_len = trace_len.next_power_of_two();
 
         let full_trace = self.into_trace_inner(trace_len);
-
         (
             super::utils::split_trace_with_padding::<CPU_TRACE_WIDTH, _>(
                 &full_trace,

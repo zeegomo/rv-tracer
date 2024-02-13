@@ -34,7 +34,7 @@ fn main() {
     File::open(path).unwrap().read_to_end(&mut elf).unwrap();
     let elf = Elf32::parse(&elf).unwrap();
     let program = Program::from(&elf);
-    let mut proof = prove_from_elf::<Blake3_192>(
+    let (mut proof, n_cycles) = prove_from_elf::<Blake3_192>(
         elf,
         ProofOptions::new(
             NUM_QUERIES,
@@ -53,6 +53,7 @@ fn main() {
         Inputs {
             program,
             segment: Segment { segment_n: 0 },
+            n_cycles,
         },
     )
     .unwrap();

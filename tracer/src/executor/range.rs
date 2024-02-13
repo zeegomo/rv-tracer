@@ -44,6 +44,7 @@ impl RangeChecker {
         trace
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn into_trace_with_splits(
         self,
         range_trace_len: usize,

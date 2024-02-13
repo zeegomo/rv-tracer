@@ -10,10 +10,10 @@ pub fn split_trace_with_padding<const WIDTH: usize, E: FieldElement<BaseField = 
     let mut result: Vec<[Vec<E>; WIDTH]> = Vec::new();
     for i in 0..n_segments {
         let mut trace = Vec::new();
-        for col in 0..WIDTH {
+        for col in full_trace {
             let start = i * (segment_len - 2);
             let end = start + segment_len - 1;
-            trace.push(full_trace[col][start..end].to_vec());
+            trace.push(col[start..end].to_vec());
             // pad the last row of each segment
             use miden_processor::crypto::RandomCoin;
             use miden_processor::crypto::RpoRandomCoin;
