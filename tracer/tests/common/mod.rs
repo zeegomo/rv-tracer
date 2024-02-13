@@ -5,6 +5,7 @@ use once_cell::sync::Lazy;
 use perturb::Field;
 use quickcheck::{Arbitrary, Gen};
 use rv_tracer::{
+    air::SegmentConfig,
     executor::{exec, Program},
     trace::TraceTable,
 };
@@ -176,8 +177,13 @@ impl<const N: usize, O: Op + Arbitrary + 'static> Arbitrary for Trace<[O; N]> {
 impl<O: Op> Trace<O> {
     // this is not actually dead
     #[allow(dead_code)]
-    pub fn table(&self) -> TraceTable<BaseElement> {
-        exec(&self.program())
+    pub fn generate(&self) -> TraceTable<BaseElement> {
+        exec(&self.program(), SegmentConfig::Single).pop().unwrap()
+    }
+
+    #[allow(dead_code)]
+    pub fn generate_with_splits(&self, segment_len: u32) -> Vec<TraceTable<BaseElement>> {
+        exec(&self.program(), SegmentConfig::Split { segment_len })
     }
 
     #[allow(dead_code)]
@@ -197,8 +203,13 @@ impl<O: Op> Trace<O> {
 
 impl<const N: usize, O: Op> Trace<[O; N]> {
     #[allow(dead_code)]
-    pub fn table(&self) -> TraceTable<BaseElement> {
-        exec(&self.program())
+    pub fn generate(&self) -> TraceTable<BaseElement> {
+        exec(&self.program(), SegmentConfig::Single).pop().unwrap()
+    }
+
+    #[allow(dead_code)]
+    pub fn generate_with_splits(&self, segment_len: u32) -> Vec<TraceTable<BaseElement>> {
+        exec(&self.program(), SegmentConfig::Split { segment_len })
     }
 
     pub fn program(&self) -> Program {
