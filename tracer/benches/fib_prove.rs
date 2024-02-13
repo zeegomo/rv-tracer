@@ -1,11 +1,12 @@
 use dhat::HeapStats;
 use once_cell::sync::Lazy;
 use rv_tracer::{
+    air::{Inputs, Segment, SegmentConfig},
     executor::{exec, Program},
     prove,
 };
 use rvsim::elf::Elf32;
-use winterfell::{math::fields::f64::BaseElement, FieldExtension, ProofOptions};
+use winterfell::{math::fields::f64::BaseElement, FieldExtension, ProofOptions, Trace};
 
 #[global_allocator]
 static ALLOC: dhat::Alloc = dhat::Alloc;
@@ -38,8 +39,15 @@ fn fibonacci_1000() -> Program {
 
 fn main() {
     let _profiler = dhat::Profiler::new_heap();
-    let trace = exec(&fibonacci_1000());
-    prove::<Blake3_192>(trace, PROOF_OPTIONS.clone(), fibonacci_1000()).unwrap();
+    let trace = exec(&fibonacci_1000(), SegmentConfig::Single)
+        .pop()
+        .unwrap();
+    let inputs = Inputs {
+        program: fibonacci_1000(),
+        segment: Segment { segment_n: 0 },
+        n_cycles: trace.length() - 1,
+    };
+    prove::<Blake3_192>(trace, PROOF_OPTIONS.clone(), inputs).unwrap();
     let HeapStats {
         total_blocks,
         total_bytes,

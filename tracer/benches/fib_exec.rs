@@ -1,5 +1,8 @@
 use dhat::HeapStats;
-use rv_tracer::executor::{exec, Program};
+use rv_tracer::{
+    air::SegmentConfig,
+    executor::{exec, Program},
+};
 use rvsim::elf::Elf32;
 
 #[global_allocator]
@@ -14,7 +17,7 @@ fn fibonacci_1000() -> Program {
 
 fn main() {
     let _profiler = dhat::Profiler::new_heap();
-    exec(&fibonacci_1000());
+    exec(&fibonacci_1000(), SegmentConfig::Single);
     let HeapStats {
         total_blocks,
         total_bytes,

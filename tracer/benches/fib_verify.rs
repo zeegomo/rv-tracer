@@ -5,11 +5,12 @@ use nix::{
 };
 use once_cell::sync::Lazy;
 use rv_tracer::{
+    air::{Inputs, Segment, SegmentConfig},
     executor::{exec, Program},
     prove, verify,
 };
 use rvsim::elf::Elf32;
-use winterfell::{math::fields::f64::BaseElement, FieldExtension, ProofOptions, StarkProof};
+use winterfell::{math::fields::f64::BaseElement, FieldExtension, ProofOptions, StarkProof, Trace};
 
 #[global_allocator]
 static ALLOC: dhat::Alloc = dhat::Alloc;
@@ -47,9 +48,16 @@ fn main() {
     match unsafe { fork() } {
         Ok(ForkResult::Parent { child, .. }) => {
             waitpid(child, None).unwrap();
-            let proof = std::fs::read(file_path).unwrap();
+            let mut proof = std::fs::read(file_path).unwrap();
+            let n_cycles =
+                usize::from_le_bytes(proof.split_off(proof.len() - 8).try_into().unwrap());
             let proof = StarkProof::from_bytes(&proof).unwrap();
-            verify::<Blake3_192>(proof, fibonacci_1000()).unwrap();
+            let inputs = Inputs {
+                program: fibonacci_1000(),
+                segment: Segment { segment_n: 0 },
+                n_cycles,
+            };
+            verify::<Blake3_192>(proof, inputs).unwrap();
             let HeapStats {
                 total_blocks,
                 total_bytes,
@@ -62,10 +70,25 @@ fn main() {
         Ok(ForkResult::Child) => {
             // we need to prove the program in a different process so that it does not interfere
             // with verify profiling
-            let trace = exec(&fibonacci_1000());
-            let proof =
-                prove::<Blake3_192>(trace, PROOF_OPTIONS.clone(), fibonacci_1000()).unwrap();
-            std::fs::write(file_path, proof.to_bytes()).unwrap();
+            let trace = exec(&fibonacci_1000(), SegmentConfig::Single)
+                .pop()
+                .unwrap();
+            let n_cycles = trace.length() - 1;
+            let inputs = Inputs {
+                program: fibonacci_1000(),
+                segment: Segment { segment_n: 0 },
+                n_cycles,
+            };
+            let proof = prove::<Blake3_192>(trace, PROOF_OPTIONS.clone(), inputs).unwrap();
+            std::fs::write(
+                file_path,
+                proof
+                    .to_bytes()
+                    .into_iter()
+                    .chain(n_cycles.to_le_bytes())
+                    .collect::<Vec<_>>(),
+            )
+            .unwrap();
             // exit the child process so that we don't save profilings here
             unsafe { libc::_exit(0) };
         }

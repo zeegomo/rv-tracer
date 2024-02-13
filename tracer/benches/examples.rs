@@ -1,8 +1,11 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use once_cell::sync::Lazy;
-use rv_tracer::{prove, verify};
+use rv_tracer::{
+    air::{Inputs, Segment, SegmentConfig},
+    prove, verify,
+};
 use rvsim::elf::Elf32;
-use winterfell::{math::fields::f64::BaseElement, FieldExtension, ProofOptions};
+use winterfell::{math::fields::f64::BaseElement, FieldExtension, ProofOptions, Trace};
 // TODO add generate gtrace
 
 const LOOP_ELF: &[u8] = include_bytes!("../../examples/loop/loop.bin");
@@ -32,22 +35,41 @@ pub fn loop_15(c: &mut Criterion) {
         b.iter(|| {
             let elf = Elf32::parse(LOOP_ELF).unwrap();
             let program = rv_tracer::executor::Program::from(&elf);
-            let trace = rv_tracer::executor::exec(&program);
-            prove::<Blake3_192>(trace, black_box(PROOF_OPTIONS.clone()), program)
+            let trace = rv_tracer::executor::exec(&program, SegmentConfig::Single)
+                .pop()
+                .unwrap();
+            let inputs = Inputs {
+                program: program.clone(),
+                segment: Segment { segment_n: 0 },
+                n_cycles: trace.length() - 1,
+            };
+            prove::<Blake3_192>(trace, black_box(PROOF_OPTIONS.clone()), inputs)
         })
     });
 
     c.bench_function("cpu loop verify", |b| {
         let elf = Elf32::parse(LOOP_ELF).unwrap();
         let program = rv_tracer::executor::Program::from(&elf);
-        let trace = rv_tracer::executor::exec(&program);
+        let trace = rv_tracer::executor::exec(&program, SegmentConfig::Single)
+            .pop()
+            .unwrap();
+        let inputs = Inputs {
+            program: program.clone(),
+            segment: Segment { segment_n: 0 },
+            n_cycles: trace.length() - 1,
+        };
         let proof =
-            prove::<Blake3_192>(trace, black_box(PROOF_OPTIONS.clone()), program.clone()).unwrap();
-        b.iter(|| verify::<Blake3_192>(proof.clone(), program.clone()))
+            prove::<Blake3_192>(trace, black_box(PROOF_OPTIONS.clone()), inputs.clone()).unwrap();
+        b.iter(|| verify::<Blake3_192>(proof.clone(), inputs.clone()))
     });
 
     c.bench_function("cpu loop trace generation", |b| {
-        b.iter(|| rv_tracer::executor::exec(&(&Elf32::parse(LOOP_ELF).unwrap()).into()));
+        b.iter(|| {
+            rv_tracer::executor::exec(
+                &(&Elf32::parse(LOOP_ELF).unwrap()).into(),
+                SegmentConfig::Single,
+            )
+        });
     });
 }
 
@@ -56,22 +78,41 @@ pub fn fibonacci_1000(c: &mut Criterion) {
         b.iter(|| {
             let elf = Elf32::parse(FIBONACCI_ELF).unwrap();
             let program = rv_tracer::executor::Program::from(&elf);
-            let trace = rv_tracer::executor::exec(&program);
-            prove::<Blake3_192>(trace, black_box(PROOF_OPTIONS.clone()), program)
+            let trace = rv_tracer::executor::exec(&program, SegmentConfig::Single)
+                .pop()
+                .unwrap();
+            let inputs = Inputs {
+                program: program.clone(),
+                segment: Segment { segment_n: 0 },
+                n_cycles: trace.length() - 1,
+            };
+            prove::<Blake3_192>(trace, black_box(PROOF_OPTIONS.clone()), inputs)
         })
     });
 
     c.bench_function("cpu fibonacci verify", |b| {
         let elf = Elf32::parse(FIBONACCI_ELF).unwrap();
         let program = rv_tracer::executor::Program::from(&elf);
-        let trace = rv_tracer::executor::exec(&program);
+        let trace = rv_tracer::executor::exec(&program, SegmentConfig::Single)
+            .pop()
+            .unwrap();
+        let inputs = Inputs {
+            program: program.clone(),
+            segment: Segment { segment_n: 0 },
+            n_cycles: trace.length() - 1,
+        };
         let proof =
-            prove::<Blake3_192>(trace, black_box(PROOF_OPTIONS.clone()), program.clone()).unwrap();
-        b.iter(|| verify::<Blake3_192>(proof.clone(), program.clone()))
+            prove::<Blake3_192>(trace, black_box(PROOF_OPTIONS.clone()), inputs.clone()).unwrap();
+        b.iter(|| verify::<Blake3_192>(proof.clone(), inputs.clone()))
     });
 
     c.bench_function("cpu fibonacci trace generation", |b| {
-        b.iter(|| rv_tracer::executor::exec(&(&Elf32::parse(FIBONACCI_ELF).unwrap()).into()));
+        b.iter(|| {
+            rv_tracer::executor::exec(
+                &(&Elf32::parse(FIBONACCI_ELF).unwrap()).into(),
+                SegmentConfig::Single,
+            )
+        });
     });
 }
 
