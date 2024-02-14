@@ -1,4 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use miden_processor::QuadExtension;
 use once_cell::sync::Lazy;
 use rv_tracer::{
     air::{Inputs, Segment, SegmentConfig},
@@ -43,7 +44,11 @@ pub fn loop_15(c: &mut Criterion) {
                 segment: Segment { segment_n: 0 },
                 n_cycles: trace.length() - 1,
             };
-            prove::<Blake3_192>(trace, black_box(PROOF_OPTIONS.clone()), inputs)
+            prove::<Blake3_192, QuadExtension<BaseElement>>(
+                trace,
+                black_box(PROOF_OPTIONS.clone()),
+                inputs,
+            )
         })
     });
 
@@ -58,8 +63,12 @@ pub fn loop_15(c: &mut Criterion) {
             segment: Segment { segment_n: 0 },
             n_cycles: trace.length() - 1,
         };
-        let proof =
-            prove::<Blake3_192>(trace, black_box(PROOF_OPTIONS.clone()), inputs.clone()).unwrap();
+        let proof = prove::<Blake3_192, QuadExtension<BaseElement>>(
+            trace,
+            black_box(PROOF_OPTIONS.clone()),
+            inputs.clone(),
+        )
+        .unwrap();
         b.iter(|| verify::<Blake3_192>(proof.clone(), inputs.clone()))
     });
 
@@ -86,7 +95,11 @@ pub fn fibonacci_1000(c: &mut Criterion) {
                 segment: Segment { segment_n: 0 },
                 n_cycles: trace.length() - 1,
             };
-            prove::<Blake3_192>(trace, black_box(PROOF_OPTIONS.clone()), inputs)
+            prove::<Blake3_192, QuadExtension<BaseElement>>(
+                trace,
+                black_box(PROOF_OPTIONS.clone()),
+                inputs,
+            )
         })
     });
 
@@ -101,8 +114,12 @@ pub fn fibonacci_1000(c: &mut Criterion) {
             segment: Segment { segment_n: 0 },
             n_cycles: trace.length() - 1,
         };
-        let proof =
-            prove::<Blake3_192>(trace, black_box(PROOF_OPTIONS.clone()), inputs.clone()).unwrap();
+        let proof = prove::<Blake3_192, QuadExtension<BaseElement>>(
+            trace,
+            black_box(PROOF_OPTIONS.clone()),
+            inputs.clone(),
+        )
+        .unwrap();
         b.iter(|| verify::<Blake3_192>(proof.clone(), inputs.clone()))
     });
 

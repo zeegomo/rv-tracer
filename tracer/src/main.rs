@@ -1,4 +1,5 @@
 use clap::Parser;
+use miden_processor::QuadExtension;
 use rv_tracer::{
     air::{Inputs, Segment},
     executor::Program,
@@ -34,7 +35,7 @@ fn main() {
     File::open(path).unwrap().read_to_end(&mut elf).unwrap();
     let elf = Elf32::parse(&elf).unwrap();
     let program = Program::from(&elf);
-    let (mut proof, n_cycles) = prove_from_elf::<Blake3_192>(
+    let (mut proof, n_cycles) = prove_from_elf::<Blake3_192, QuadExtension<BaseElement>>(
         elf,
         ProofOptions::new(
             NUM_QUERIES,

@@ -3,6 +3,7 @@ pub mod executor;
 pub mod prover;
 pub mod trace;
 use executor::Program;
+use miden_air::FieldElement;
 use rvsim::elf::Elf32;
 use std::time::Instant;
 use winterfell::ProverError;
@@ -17,23 +18,47 @@ use winterfell::{
     ProofOptions, Prover, StarkProof, Trace, VerifierError,
 };
 
-pub fn prove<H: ElementHasher<BaseField = BaseElement>>(
+pub fn prove<H, E>(
     trace: TraceTable<BaseElement>,
     options: ProofOptions,
     inputs: Inputs,
-) -> Result<StarkProof, ProverError> {
-    let prover = prover::RiscvProver::<H>::new(options, inputs);
+) -> Result<StarkProof, ProverError>
+where
+    H: ElementHasher<BaseField = BaseElement>,
+    E: FieldElement<BaseField = BaseElement>,
+{
+    let prover = prover::RiscvProver::<H, E>::new(options, inputs);
     let now = Instant::now();
     let proof = prover.prove(trace)?;
     log::debug!("Generated proof in {} ms", now.elapsed().as_millis());
     Ok(proof)
 }
 
-pub fn prove_from_elf<H: ElementHasher<BaseField = BaseElement>>(
+pub fn prove_with_splits<H, E>(
+    traces: Vec<TraceTable<BaseElement>>,
+    options: ProofOptions,
+    inputs: Inputs,
+) -> Result<(Vec<StarkProof>, Vec<StarkProof>), ProverError>
+where
+    H: ElementHasher<BaseField = BaseElement>,
+    E: FieldElement<BaseField = BaseElement>,
+{
+    let mut prover = prover::RiscvProver::<H, E>::new(options, inputs);
+    let now = Instant::now();
+    let proof = prover.prove_with_splits(traces)?;
+    log::debug!("Generated link proof in {} ms", now.elapsed().as_millis());
+    Ok(proof)
+}
+
+pub fn prove_from_elf<H, E>(
     elf: Elf32,
     options: ProofOptions,
     segment_config: SegmentConfig,
-) -> Result<(Vec<StarkProof>, usize), ProverError> {
+) -> Result<(Vec<StarkProof>, usize), ProverError>
+where
+    H: ElementHasher<BaseField = BaseElement>,
+    E: FieldElement<BaseField = BaseElement>,
+{
     log::debug!(
         "Generating proof for riscv program\n\
         ---------------------"
@@ -63,7 +88,7 @@ pub fn prove_from_elf<H: ElementHasher<BaseField = BaseElement>>(
                 },
                 n_cycles,
             };
-            prove::<H>(trace, options.clone(), inputs)
+            prove::<H, E>(trace, options.clone(), inputs)
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok((proofs, n_cycles))
@@ -75,6 +100,20 @@ pub fn verify<H: ElementHasher<BaseField = BaseElement>>(
 ) -> Result<(), VerifierError> {
     let now = Instant::now();
     winterfell::verify::<air::RiscvAir, H, DefaultRandomCoin<H>>(proof, inputs)?;
+    log::debug!("Verified proof in {} ms", now.elapsed().as_millis());
+    Ok(())
+}
+
+pub fn verify_link<H: ElementHasher<BaseField = BaseElement>>(
+    proof_1: StarkProof,
+    proof_2: StarkProof,
+    link_proof: StarkProof,
+    inputs: Inputs,
+) -> Result<(), VerifierError> {
+    let now = Instant::now();
+    winterfell::verify_link::<air::RiscvAir, H, DefaultRandomCoin<H>>(
+        proof_1, proof_2, link_proof, inputs,
+    )?;
     log::debug!("Verified proof in {} ms", now.elapsed().as_millis());
     Ok(())
 }

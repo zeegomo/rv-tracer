@@ -1,4 +1,5 @@
 use dhat::HeapStats;
+use miden_processor::QuadExtension;
 use nix::{
     sys::wait::waitpid,
     unistd::{fork, ForkResult},
@@ -79,7 +80,12 @@ fn main() {
                 segment: Segment { segment_n: 0 },
                 n_cycles,
             };
-            let proof = prove::<Blake3_192>(trace, PROOF_OPTIONS.clone(), inputs).unwrap();
+            let proof = prove::<Blake3_192, QuadExtension<BaseElement>>(
+                trace,
+                PROOF_OPTIONS.clone(),
+                inputs,
+            )
+            .unwrap();
             std::fs::write(
                 file_path,
                 proof
