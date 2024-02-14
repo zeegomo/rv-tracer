@@ -10,6 +10,7 @@ use winterfell::{
 const NUM_ALPHA_ELEMS: usize = 9;
 const NUM_RAND_ROWS: usize = 1;
 
+#[derive(Clone)]
 pub struct TraceTable<E: StarkField> {
     inner: winterfell::TraceTable<E>,
     layout: TraceLayout,

@@ -6,7 +6,7 @@ use quickcheck::Arbitrary;
 use quickcheck::TestResult;
 use rv_tracer::{
     air::{Inputs, Segment},
-    prove, verify,
+    prove, prove_with_splits, verify, verify_link,
 };
 use std::any::TypeId;
 use trace_defs::MAIN_TRACE_WIDTH;
@@ -131,7 +131,7 @@ macro_rules! generate_batched {
 
                     let trace_length = tt.length();
                     assert!(trace_length > 16);
-                    let proof = prove::<Blake3_192>(tt, PROOF_OPTIONS.clone(), inputs.clone()).unwrap();
+                    let proof = prove::<Blake3_192, BaseElement>(tt, PROOF_OPTIONS.clone(), inputs.clone()).unwrap();
                     verify::<Blake3_192>(proof, inputs).is_ok()
 
                 }
@@ -167,22 +167,46 @@ quickcheck::quickcheck! {
     fn test_prove_and_verify_splits(trace: Trace<[Add; 16]>, split_size: SplitSize) -> bool {
         let split_size = core::cmp::min(split_size.0, trace.generate().length().next_power_of_two() as u32);
         let traces = trace.generate_with_splits(split_size);
+        println!("one: {split_size}");
         let n_cycles = traces.iter().map(|t| t.length() - 1).sum();
+        let inputs = Inputs {
+            program: trace.program(),
+            segment: Segment {
+                segment_n: 0,
+            },
+            n_cycles,
+        };
 
-        for (i, segment) in traces.into_iter().enumerate() {
+        let  (proofs, link_proofs) = prove_with_splits::<Blake3_192, BaseElement>(traces, PROOF_OPTIONS.clone(), inputs).unwrap();
+
+        // verify all segment proofs
+        for (segment_n, proof) in proofs.iter().enumerate() {
             let inputs = Inputs {
                 program: trace.program(),
                 segment: Segment {
-                    segment_n: i as u32,
+                    segment_n: segment_n as u32,
                 },
                 n_cycles,
             };
-            let proof = prove::<Blake3_192>(segment,PROOF_OPTIONS.clone(), inputs.clone()).unwrap();
-            if !verify::<Blake3_192>(proof, inputs).is_ok() {
-                return false;
-            }
+            verify::<Blake3_192>(proof.clone(), inputs).unwrap();
+        }
+
+        // verify all links
+        for (proofs, link_proof) in proofs.windows(2).zip(link_proofs) {
+            let proof_1 = proofs[0].clone();
+            let proof_2 = proofs[1].clone();
+            let inputs = Inputs {
+                program: trace.program(),
+                segment: Segment {
+                    segment_n: 0,
+                },
+                n_cycles,
+            };
+            verify_link::<Blake3_192>(proof_1, proof_2, link_proof, inputs).unwrap();
         }
 
         true
     }
+
+
 }

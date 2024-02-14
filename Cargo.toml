@@ -17,3 +17,12 @@ opt-level = 3
 
 [profile.bench]
 debug = true
+
+[patch.crates-io]
+winter-math = { git = "https://github.com/zeegomo/winterfell", branch = "add-link-proof" }
+winter-prover = { git = "https://github.com/zeegomo/winterfell", branch = "add-link-proof" }
+winter-utils = { git = "https://github.com/zeegomo/winterfell", branch = "add-link-proof" }
+winter-crypto = { git = "https://github.com/zeegomo/winterfell", branch = "add-link-proof" }
+winter-air = { git = "https://github.com/zeegomo/winterfell", branch = "add-link-proof" }
+winter-verifier = { git = "https://github.com/zeegomo/winterfell", branch = "add-link-proof" }
+winterfell = { git = "https://github.com/zeegomo/winterfell", branch = "add-link-proof" }
