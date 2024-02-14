@@ -25,4 +25,5 @@ winter-utils = { git = "https://github.com/zeegomo/winterfell", branch = "add-li
 winter-crypto = { git = "https://github.com/zeegomo/winterfell", branch = "add-link-proof" }
 winter-air = { git = "https://github.com/zeegomo/winterfell", branch = "add-link-proof" }
 winter-verifier = { git = "https://github.com/zeegomo/winterfell", branch = "add-link-proof" }
+winter-fri = { git = "https://github.com/zeegomo/winterfell", branch = "add-link-proof" }
 winterfell = { git = "https://github.com/zeegomo/winterfell", branch = "add-link-proof" }

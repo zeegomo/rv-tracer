@@ -3,11 +3,10 @@ use crate::{
     trace::TraceTable,
 };
 use core::marker::PhantomData;
-
+use winter_prover::*;
 use winterfell::{
     crypto::{DefaultRandomCoin, ElementHasher},
     math::{fft::infer_degree, fields::f64::BaseElement, FieldElement, StarkField, ToElements},
-    prover::*,
     Air, AuxTraceRandElements, ColMatrix, ProofOptions, Prover, ProverError, StarkProof, Trace,
     TraceCommitment, TraceInfo,
 };
@@ -46,17 +45,40 @@ where
         }
     }
 
-    pub fn prove_with_splits(
+    pub fn prove_segmented(
         &mut self,
         traces: Vec<TraceTable<E::BaseField>>,
     ) -> Result<(Vec<StarkProof>, Vec<StarkProof>), ProverError> {
         let mut proofs = Vec::new();
         let mut link_proofs = Vec::new();
+
+        let main_traces_commitments = traces
+            .iter()
+            .map(|t| {
+                let air = <Self as Prover>::Air::new(
+                    t.get_info(),
+                    self.get_pub_inputs(t),
+                    self.options().clone(),
+                );
+                let domain = StarkDomain::new(&air);
+                *self
+                    .build_trace_commitment::<<Self as Prover>::BaseField>(
+                        t.main_segment(),
+                        &domain,
+                    )
+                    .1
+                    .root()
+            })
+            .collect::<Vec<_>>();
+
+        println!("main_traces_commitments: {}", main_traces_commitments.len());
+
         for trace in traces {
-            let proof = self.generate_proof_with_cache(trace)?;
+            let proof = self.generate_proof_with_cache(trace, &main_traces_commitments)?;
             self.inputs.segment.segment_n += 1;
             proofs.push(proof);
         }
+
         // reset segment counter
         self.inputs.segment.segment_n = 0;
         let cache = core::mem::take(&mut self.cache);
@@ -77,12 +99,12 @@ where
     fn generate_proof_with_cache(
         &mut self,
         mut trace: <Self as Prover>::Trace,
+        main_trace_commitments: &[H::Digest],
     ) -> Result<StarkProof, ProverError> {
         // 0 ----- instantiate AIR and prover channel ---------------------------------------------
 
         // serialize public inputs; these will be included in the seed for the public coin
         let pub_inputs = self.get_pub_inputs(&trace);
-        let pub_inputs_elements = pub_inputs.to_elements();
 
         // create an instance of AIR for the provided parameters. this takes a generic description
         // of the computation (provided via AIR type), and creates a description of a specific
@@ -92,12 +114,13 @@ where
         // create a channel which is used to simulate interaction between the prover and the
         // verifier; the channel will be used to commit to values and to draw randomness that
         // should come from the verifier.
+        // TODO: add pub inputs to coin seed
         let mut channel = ProverChannel::<
             <Self as Prover>::Air,
             E,
             <Self as Prover>::HashFn,
             <Self as Prover>::RandomCoin,
-        >::new(&air, pub_inputs_elements);
+        >::new(&air, vec![]);
 
         // 1 ----- Commit to the execution trace --------------------------------------------------
 
@@ -112,13 +135,13 @@ where
             now.elapsed().as_millis()
         );
 
+        for commitment in main_trace_commitments {
+            channel.commit_trace(*commitment);
+        }
+
         // extend the main execution trace and build a Merkle tree from the extended trace
         let (main_trace_lde, main_trace_tree, main_trace_polys) = self
             .build_trace_commitment::<<Self as Prover>::BaseField>(trace.main_segment(), &domain);
-
-        // commit to the LDE of the main trace by writing the root of its Merkle tree into
-        // the channel
-        channel.commit_trace(*main_trace_tree.root());
 
         // initialize trace commitment and trace polynomial table structs with the main trace
         // data; for multi-segment traces these structs will be used as accumulators of all
@@ -363,7 +386,7 @@ where
             E,
             <Self as Prover>::HashFn,
             <Self as Prover>::RandomCoin,
-        >::new(&air, pub_inputs.to_elements());
+        >::new(&air, vec![]);
         let domain = StarkDomain::new(&air);
         // 4 ----- build DEEP composition polynomial ----------------------------------------------
         #[cfg(feature = "std")]

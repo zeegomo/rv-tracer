@@ -19,6 +19,13 @@ trace-defs = { path = "../trace-defs" }
 constraint-macros = { path = "../constraint-macros" }
 miden-processor = { path = "../miden-vm/processor" }
 miden-air = { path = "../miden-vm/air" }
+winter-air = "0.6"
+winter-utils = "0.6"
+winter-fri = "0.6"
+winter-verifier = "0.6"
+winter-math = "0.6"
+winter-crypto = "0.6"
+winter-prover = "0.6"
 
 [dev-dependencies]
 paste = "1"
