@@ -6,7 +6,7 @@ use core::marker::PhantomData;
 use winter_prover::*;
 use winterfell::{
     crypto::{DefaultRandomCoin, ElementHasher},
-    math::{fft::infer_degree, fields::f64::BaseElement, FieldElement, StarkField, ToElements},
+    math::{fft::infer_degree, fields::f64::BaseElement, FieldElement, StarkField},
     Air, AuxTraceRandElements, ColMatrix, ProofOptions, Prover, ProverError, StarkProof, Trace,
     TraceCommitment, TraceInfo,
 };
