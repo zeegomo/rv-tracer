@@ -1,4 +1,5 @@
 use dhat::HeapStats;
+use miden_processor::QuadExtension;
 use once_cell::sync::Lazy;
 use rv_tracer::{
     air::{Inputs, Segment, SegmentConfig},
@@ -47,7 +48,7 @@ fn main() {
         segment: Segment { segment_n: 0 },
         n_cycles: trace.length() - 1,
     };
-    prove::<Blake3_192>(trace, PROOF_OPTIONS.clone(), inputs).unwrap();
+    prove::<Blake3_192, QuadExtension<BaseElement>>(trace, PROOF_OPTIONS.clone(), inputs).unwrap();
     let HeapStats {
         total_blocks,
         total_bytes,
