@@ -1,4 +1,4 @@
-use self::perturb::H0;
+use self::perturb::{Rs1Bits, Rs2Bits, H0};
 
 use super::*;
 use quickcheck::{Arbitrary as _, Gen};
@@ -496,6 +496,16 @@ impl Op for Bne {
     }
 
     fn discard_perturb(&self, id: TypeId) -> bool {
+        if id == TypeId::of::<H0>()
+            || id == TypeId::of::<Rs1Bits>()
+            || id == TypeId::of::<Rs2Bits>()
+        {
+            // if offset == 4, both branches have the same outcome regardless of the values of h0, rs1 and rs2
+            if self.offset == 4 {
+                return true;
+            }
+        }
+
         if id == TypeId::of::<H0>() {
             // discard permutations of H0 when it's not used (i.e. rs1 == rs2)
             return self.rs1_value == self.rs2_value;

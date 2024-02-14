@@ -150,7 +150,7 @@ generate_tests!(Slti, RdBits, Rs1Bits, Imm);
 generate_batched!(Slti);
 generate_tests!(Add, RdBits, Rs1Bits, Rs2Bits, H0, H0Bin);
 generate_batched!(Add);
-generate_tests!(Bne, Rs1Bits, Rs2Bits, H0);
+generate_tests!(Bne, Rs1Bits, Rs2Bits, H0, Pc);
 
 #[derive(Clone, Copy, Debug)]
 struct SplitSize(u32);
