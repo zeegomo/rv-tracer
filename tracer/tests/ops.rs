@@ -178,33 +178,6 @@ quickcheck::quickcheck! {
         };
 
         let  (proofs, link_proofs) = prove_segmented::<Blake3_192, BaseElement>(traces, PROOF_OPTIONS.clone(), inputs.clone()).unwrap();
-
-        // // verify all segment proofs
-        // for (segment_n, proof) in proofs.iter().enumerate() {
-        //     let inputs = Inputs {
-        //         program: trace.program(),
-        //         segment: Segment {
-        //             segment_n: segment_n as u32,
-        //         },
-        //         n_cycles,
-        //     };
-        //     verify::<Blake3_192>(proof.clone(), inputs).unwrap();
-        // }
-
-        // // verify all links
-        // for (proofs, link_proof) in proofs.windows(2).zip(link_proofs) {
-        //     let proof_1 = proofs[0].clone();
-        //     let proof_2 = proofs[1].clone();
-        //     let inputs = Inputs {
-        //         program: trace.program(),
-        //         segment: Segment {
-        //             segment_n: 0,
-        //         },
-        //         n_cycles,
-        //     };
-        //     verify_link::<Blake3_192>(proof_1, proof_2, link_proof, inputs).unwrap();
-        // }
-
         verify_segmented::<Blake3_192>(proofs, link_proofs, inputs).unwrap();
         true
     }
