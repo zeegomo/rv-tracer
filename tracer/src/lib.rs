@@ -2,6 +2,7 @@ pub mod air;
 pub mod executor;
 pub mod prover;
 pub mod trace;
+mod verifier;
 use executor::Program;
 use miden_air::FieldElement;
 use rvsim::elf::Elf32;
@@ -34,7 +35,7 @@ where
     Ok(proof)
 }
 
-pub fn prove_with_splits<H, E>(
+pub fn prove_segmented<H, E>(
     traces: Vec<TraceTable<BaseElement>>,
     options: ProofOptions,
     inputs: Inputs,
@@ -45,7 +46,7 @@ where
 {
     let mut prover = prover::RiscvProver::<H, E>::new(options, inputs);
     let now = Instant::now();
-    let proof = prover.prove_with_splits(traces)?;
+    let proof = prover.prove_segmented(traces)?;
     log::debug!("Generated link proof in {} ms", now.elapsed().as_millis());
     Ok(proof)
 }
@@ -104,16 +105,13 @@ pub fn verify<H: ElementHasher<BaseField = BaseElement>>(
     Ok(())
 }
 
-pub fn verify_link<H: ElementHasher<BaseField = BaseElement>>(
-    proof_1: StarkProof,
-    proof_2: StarkProof,
-    link_proof: StarkProof,
+pub fn verify_segmented<H: ElementHasher<BaseField = BaseElement>>(
+    proofs: Vec<StarkProof>,
+    link_proofs: Vec<StarkProof>,
     inputs: Inputs,
 ) -> Result<(), VerifierError> {
     let now = Instant::now();
-    winterfell::verify_link::<air::RiscvAir, H, DefaultRandomCoin<H>>(
-        proof_1, proof_2, link_proof, inputs,
-    )?;
-    log::debug!("Verified proof in {} ms", now.elapsed().as_millis());
+    verifier::verify_segmented::<H, DefaultRandomCoin<H>>(proofs, link_proofs, inputs)?;
+    log::debug!("Verified proof(s) in {} ms", now.elapsed().as_millis());
     Ok(())
 }
