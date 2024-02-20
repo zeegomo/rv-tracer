@@ -71,7 +71,7 @@ pub fn exec(program: &Program, segment_config: SegmentConfig) -> Vec<TraceTable<
             let remaining_trace_len = (max_trace_len as u32).saturating_sub(segment_len - 1);
             let available_segment_length = segment_len - 2;
             let n_segments = (remaining_trace_len + available_segment_length - 1)
-                / (available_segment_length - 1)
+                / (available_segment_length)
                 + 1;
 
             let (cpu_traces, mut cpu_full_trace) =

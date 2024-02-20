@@ -19,11 +19,10 @@ where
     HashFn: ElementHasher<BaseField = <RiscvAir as Air>::BaseField>,
     RandCoin: RandomCoin<BaseField = <RiscvAir as Air>::BaseField, Hasher = HashFn>,
 {
-    assert!(proofs.len() == link_proofs.len() + 1);
+    assert_eq!(proofs.len(), link_proofs.len() + 1);
     let n_segments = proofs.len();
 
     for (segment_n, (proofs, link_proof)) in proofs.windows(2).zip(link_proofs).enumerate() {
-        println!("verifying one");
         let prev = proofs[0].clone();
         let next = proofs[1].clone();
         verify_link::<HashFn, RandCoin>(
@@ -36,9 +35,7 @@ where
         )
         .unwrap();
     }
-    println!("verified links");
     for proof in proofs {
-        println!("veri..");
         verify::<HashFn, RandCoin>(proof, n_segments, pub_inputs.clone()).unwrap();
         pub_inputs.segment.segment_n += 1;
     }
