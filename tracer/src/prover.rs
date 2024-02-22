@@ -51,7 +51,6 @@ where
     ) -> Result<(Vec<StarkProof>, Vec<StarkProof>), ProverError> {
         let mut proofs = Vec::new();
         let mut link_proofs = Vec::new();
-
         let main_traces_commitments = traces
             .iter()
             .map(|t| {
@@ -71,22 +70,19 @@ where
             })
             .collect::<Vec<_>>();
 
-        println!("main_traces_commitments: {}", main_traces_commitments.len());
-
-        for trace in traces {
-            let proof = self.generate_proof_with_cache(trace, &main_traces_commitments)?;
+        proofs.push(self.generate_proof_with_cache(traces[0].clone(), &main_traces_commitments)?);
+        for traces in traces.windows(2) {
+            let trace = traces[1].clone();
+            // generate proof
             self.inputs.segment.segment_n += 1;
-            proofs.push(proof);
-        }
+            proofs.push(self.generate_proof_with_cache(trace, &main_traces_commitments)?);
 
-        // reset segment counter
-        self.inputs.segment.segment_n = 0;
-        let cache = core::mem::take(&mut self.cache);
-
-        for traces in cache.windows(2) {
-            let (prev, next) = (&traces[0], &traces[1]);
-            let link_proof = self.generate_link_proof(prev, next)?;
-            link_proofs.push(link_proof);
+            // generate link proof
+            assert_eq!(self.cache.len(), 2);
+            let next = self.cache.pop().unwrap();
+            let prev = self.cache.pop().unwrap();
+            link_proofs.push(self.generate_link_proof(&prev, &next)?);
+            self.cache.push(next);
         }
 
         Ok((proofs, link_proofs))
@@ -408,35 +404,33 @@ where
             trace_2.polys.evaluate_base_field_at(E::BaseField::ONE)[0]
         );
 
-        let trace_evals = (0..air.trace_length())
-            .map(|row| {
-                let x = g.exp_vartime((row as u32).into()) * E::BaseField::GENERATOR;
-                let x_l = x * g.exp_vartime(offset.into());
-                let trace_1_evals = trace_1.polys.evaluate_base_field_at(x_l);
-                let trace_2_evals = trace_2.polys.evaluate_base_field_at(x);
-                (x, trace_1_evals, trace_2_evals)
-            })
-            .collect::<Vec<_>>();
-        for (i, (x, t1, t2)) in trace_evals.into_iter().enumerate() {
-            for (j, (a, b)) in t1.into_iter().zip(t2).enumerate() {
-                b_evals[j][i] = (a - b) / (x - E::BaseField::ONE);
+        for row in 0..air.trace_length() {
+            let x = g.exp_vartime((row as u32).into()) * E::BaseField::GENERATOR;
+            let blowup_row =
+                (row * air.lde_blowup_factor()) % (air.trace_length() * air.lde_blowup_factor());
+            let blowup_row_offset = ((row + offset as usize) * air.lde_blowup_factor())
+                % (air.trace_length() * air.lde_blowup_factor());
+            let t1 = trace_1.commitment.trace_table().get_main_segment();
+            let t2 = trace_2.commitment.trace_table().get_main_segment();
+            for (col, b_col) in b_evals.iter_mut().enumerate() {
+                b_col[row] = (t1.get(col, blowup_row_offset) - t2.get(col, blowup_row))
+                    / (x - E::BaseField::ONE);
             }
         }
 
         let mut b_aux_evals = vec![vec![E::ZERO; air.trace_length()]; aux_trace_width];
         let g = E::from(g);
-        let aux_trace_evals = (0..air.trace_length())
-            .map(|row| {
-                let x = g.exp_vartime((row as u32).into()) * E::BaseField::GENERATOR.into();
-                let x_l = x * g.exp_vartime(offset.into());
-                let trace_1_evals = trace_1.polys.evaluate_aux_at(x_l);
-                let trace_2_evals = trace_2.polys.evaluate_aux_at(x);
-                (x, trace_1_evals, trace_2_evals)
-            })
-            .collect::<Vec<_>>();
-        for (i, (x, t1, t2)) in aux_trace_evals.into_iter().enumerate() {
-            for (j, (a, b)) in t1.into_iter().zip(t2).enumerate() {
-                b_aux_evals[j][i] = (a - b) / (x - E::ONE);
+        for row in 0..air.trace_length() {
+            let x = g.exp_vartime((row as u32).into()) * E::BaseField::GENERATOR.into();
+            let blowup_row =
+                (row * air.lde_blowup_factor()) % (air.trace_length() * air.lde_blowup_factor());
+            let blowup_row_offset = ((row + offset as usize) * air.lde_blowup_factor())
+                % (air.trace_length() * air.lde_blowup_factor());
+            let t1 = trace_1.commitment.trace_table().get_aux_segment(0);
+            let t2 = trace_2.commitment.trace_table().get_aux_segment(0);
+            for (col, b_col) in b_aux_evals.iter_mut().enumerate() {
+                b_col[row] =
+                    (t1.get(col, blowup_row_offset) - t2.get(col, blowup_row)) / (x - E::ONE);
             }
         }
         let b_evals = ColMatrix::new(b_evals);

@@ -55,7 +55,7 @@ pub fn prove_from_elf<H, E>(
     elf: Elf32,
     options: ProofOptions,
     segment_config: SegmentConfig,
-) -> Result<(Vec<StarkProof>, usize), ProverError>
+) -> Result<(Vec<StarkProof>, Vec<StarkProof>, usize), ProverError>
 where
     H: ElementHasher<BaseField = BaseElement>,
     E: FieldElement<BaseField = BaseElement>,
@@ -67,8 +67,7 @@ where
     // generate execution trace
     let now = Instant::now();
     let program: Program = (&elf).into();
-    let traces = executor::exec(&program, segment_config);
-
+    let mut traces = executor::exec(&program, segment_config);
     let trace_width = traces[0].get_info().width();
     let trace_length = traces[0].length();
     log::debug!(
@@ -78,21 +77,22 @@ where
         now.elapsed().as_millis()
     );
     let n_cycles = traces.iter().map(|t| t.length() - 1).sum::<usize>();
-    let proofs = traces
-        .into_iter()
-        .enumerate()
-        .map(|(segment_n, trace)| {
-            let inputs = Inputs {
-                program: program.clone(),
-                segment: Segment {
-                    segment_n: segment_n as u32,
-                },
-                n_cycles,
-            };
-            prove::<H, E>(trace, options.clone(), inputs)
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok((proofs, n_cycles))
+    let inputs = Inputs {
+        program: program.clone(),
+        segment: Segment { segment_n: 0 },
+        n_cycles,
+    };
+    match segment_config {
+        SegmentConfig::Single => {
+            let proof = prove::<H, E>(traces.remove(0), options.clone(), inputs)?;
+            Ok((vec![proof], Vec::new(), n_cycles))
+        }
+        SegmentConfig::Split { .. } => {
+            let (proofs, link_proofs) = prove_segmented::<H, E>(traces, options, inputs)?;
+
+            Ok((proofs, link_proofs, n_cycles))
+        }
+    }
 }
 
 pub fn verify<H: ElementHasher<BaseField = BaseElement>>(

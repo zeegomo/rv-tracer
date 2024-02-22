@@ -35,22 +35,23 @@ fn main() {
     File::open(path).unwrap().read_to_end(&mut elf).unwrap();
     let elf = Elf32::parse(&elf).unwrap();
     let program = Program::from(&elf);
-    let (mut proof, n_cycles) = prove_from_elf::<Blake3_192, QuadExtension<BaseElement>>(
-        elf,
-        ProofOptions::new(
-            NUM_QUERIES,
-            BLOWUP_FACTOR,
-            GRINDING_FACTOR,
-            FieldExtension::Quadratic,
-            FRI_FOLDING_FACTOR,
-            FRI_REMAINDER_MAX_DEGREE,
-        ),
-        air::SegmentConfig::Single,
-    )
-    .unwrap();
+    let (mut proofs, _link_proofs, n_cycles) =
+        prove_from_elf::<Blake3_192, QuadExtension<BaseElement>>(
+            elf,
+            ProofOptions::new(
+                NUM_QUERIES,
+                BLOWUP_FACTOR,
+                GRINDING_FACTOR,
+                FieldExtension::Quadratic,
+                FRI_FOLDING_FACTOR,
+                FRI_REMAINDER_MAX_DEGREE,
+            ),
+            air::SegmentConfig::Single,
+        )
+        .unwrap();
 
     verify::<Blake3_192>(
-        proof.pop().unwrap(),
+        proofs.pop().unwrap(),
         Inputs {
             program,
             segment: Segment { segment_n: 0 },
