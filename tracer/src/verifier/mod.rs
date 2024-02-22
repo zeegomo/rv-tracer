@@ -94,11 +94,11 @@ where
                 return Err(VerifierError::UnsupportedFieldExtension(2));
             }
             let public_coin = RandCoin::new(&public_coin_seed);
-            let channel = LinkVerifierChannel::new(&air, proof)?;
-            let channel_1: VerifierChannel<<RiscvAir as Air>::BaseField, HashFn> =
-                VerifierChannel::new(&air, proof_1, n_segments, segment_n)?;
-            let channel_2: VerifierChannel<<RiscvAir as Air>::BaseField, HashFn> =
-                VerifierChannel::new(&air, proof_2, n_segments, segment_n + 1)?;
+            let channel = LinkVerifierChannel::new(&air, proof).unwrap();
+            let channel_1: VerifierChannel<QuadExtension<<RiscvAir as Air>::BaseField>, HashFn> =
+                VerifierChannel::new(&air, proof_1, n_segments, segment_n).unwrap();
+            let channel_2: VerifierChannel<QuadExtension<<RiscvAir as Air>::BaseField>, HashFn> =
+                VerifierChannel::new(&air, proof_2, n_segments, segment_n + 1).unwrap();
 
             if channel_1.read_trace_commitments() != channel.read_trace_1_commitments()
                 || channel_2.read_trace_commitments() != channel.read_trace_2_commitments()
@@ -118,9 +118,9 @@ where
             }
             let public_coin = RandCoin::new(&public_coin_seed);
             let channel = LinkVerifierChannel::new(&air, proof)?;
-            let channel_1: VerifierChannel<<RiscvAir as Air>::BaseField, HashFn> =
+            let channel_1: VerifierChannel<CubeExtension<<RiscvAir as Air>::BaseField>, HashFn> =
                 VerifierChannel::new(&air, proof_1, n_segments, segment_n)?;
-            let channel_2: VerifierChannel<<RiscvAir as Air>::BaseField, HashFn> =
+            let channel_2: VerifierChannel<CubeExtension<<RiscvAir as Air>::BaseField>, HashFn> =
                 VerifierChannel::new(&air, proof_2, n_segments, segment_n + 1)?;
             if channel_1.read_trace_commitments() != channel.read_trace_1_commitments()
                 || channel_2.read_trace_commitments() != channel.read_trace_2_commitments()

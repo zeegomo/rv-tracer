@@ -412,8 +412,8 @@ where
                 % (air.trace_length() * air.lde_blowup_factor());
             let t1 = trace_1.commitment.trace_table().get_main_segment();
             let t2 = trace_2.commitment.trace_table().get_main_segment();
-            for col in 0..main_trace_width {
-                b_evals[col][row] = (t1.get(col, blowup_row_offset) - t2.get(col, blowup_row))
+            for (col, b_col) in b_evals.iter_mut().enumerate() {
+                b_col[row] = (t1.get(col, blowup_row_offset) - t2.get(col, blowup_row))
                     / (x - E::BaseField::ONE);
             }
         }
@@ -428,8 +428,8 @@ where
                 % (air.trace_length() * air.lde_blowup_factor());
             let t1 = trace_1.commitment.trace_table().get_aux_segment(0);
             let t2 = trace_2.commitment.trace_table().get_aux_segment(0);
-            for col in 0..aux_trace_width {
-                b_aux_evals[col][row] =
+            for (col, b_col) in b_aux_evals.iter_mut().enumerate() {
+                b_col[row] =
                     (t1.get(col, blowup_row_offset) - t2.get(col, blowup_row)) / (x - E::ONE);
             }
         }
