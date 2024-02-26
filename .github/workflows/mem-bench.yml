@@ -29,12 +29,26 @@ jobs:
         with:
           name: fib-prove
           path: tracer/dhat-heap.json
+      - name: Run bench prove segmented
+        id: run_prove_segmented
+        run: cargo bench --bench fib_prove_segmented >> $GITHUB_OUTPUT
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fib-prove-segmented
+          path: tracer/dhat-heap.json
       - name: Run bench verify
         id: run_verify
         run: cargo bench --bench fib_verify >> $GITHUB_OUTPUT
       - uses: actions/upload-artifact@v4
         with:
           name: fib-verify
+          path: tracer/dhat-heap.json
+      - name: Run bench verify segmented
+        id: run_verify_segmented
+        run: cargo bench --bench fib_verify_segmented >> $GITHUB_OUTPUT
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fib-verify-segmented
           path: tracer/dhat-heap.json
       - uses: actions/github-script@v6
         with:
@@ -44,4 +58,11 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: "**Fib 1000 peak memory usage**:\n * exec: " + ${{ steps.run_exec.outputs.out }}[3] / 1024 + " kB\n * prove: " + ${{ steps.run_prove.outputs.out }}[3] / 1024 + " kB\n * verify: " + ${{ steps.run_verify.outputs.out }}[3] / 1024 + " kB"
+            })
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: "**Fib 1000 peak memory usage segmented (4K)**:\n * prove: " + ${{ steps.run_prove_segmented.outputs.out }}[3] / 1024 + " kB\n * verify: " + ${{ steps.run_verify_segmented.outputs.out }}[3] / 1024 + " kB"
             })

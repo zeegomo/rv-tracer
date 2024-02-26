@@ -56,6 +56,15 @@ harness = false
 name = "fib_verify"
 harness = false
 
+[[bench]]
+name = "fib_prove_segmented"
+harness = false
+
+[[bench]]
+name = "fib_verify_segmented"
+harness = false
+
+
 # https://bheisler.github.io/criterion.rs/book/faq.html#cargo-bench-gives-unrecognized-option-errors-for-valid-command-line-options
 [lib]
 bench = false
