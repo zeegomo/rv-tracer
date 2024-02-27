@@ -1,10 +1,6 @@
 name: Memory Bench
 
-on:
-  push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
+on: [workflow_call]
 
 jobs:
   bench-exec-mem:
@@ -15,6 +11,7 @@ jobs:
         with:
           submodules: true
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
       - name: Run bench exec
         id: run_exec
         run: cargo bench --bench fib_exec >> $GITHUB_OUTPUT

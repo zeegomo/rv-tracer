@@ -255,5 +255,10 @@ pub fn fibonacci_1000(c: &mut Criterion) {
     });
 }
 
-criterion_group!(cpu, loop_15, fibonacci_1000);
-criterion_main!(cpu);
+criterion_group!(cpu_short, loop_15);
+criterion_group!(
+    name = cpu_long;
+    config = Criterion::default().sample_size(10);
+    targets = fibonacci_1000
+);
+criterion_main!(cpu_short, cpu_long);

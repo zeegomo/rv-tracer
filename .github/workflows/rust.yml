@@ -1,27 +1,12 @@
 name: Rust
 
-on:
-  push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
+on: [workflow_call]
 
 env:
   CARGO_TERM_COLOR: always
   QUICKCHECK_TESTS: 1000
 
 jobs:
-  build-and-test:
-    runs-on: [alpha]
-    steps:
-    - uses: actions/checkout@v3
-      with:
-        submodules: true
-    - uses: dtolnay/rust-toolchain@stable
-    - name: Build
-      run: cargo build --verbose --manifest-path tracer/Cargo.toml
-    - name: Run tests
-      run: cargo test --verbose --manifest-path tracer/Cargo.toml --all-features
   clippy:
     runs-on: [alpha]
     steps:
@@ -31,5 +16,19 @@ jobs:
     - uses: dtolnay/rust-toolchain@stable
       with:
         components: clippy
-    - name: Build
+    - uses: Swatinem/rust-cache@v2
+    - name: Run clippy
       run: cargo clippy -- -Dwarnings
+  build-and-test:
+    runs-on: [alpha]
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
+    - name: Build
+      run: cargo build --verbose --manifest-path tracer/Cargo.toml
+    - name: Run tests
+      run: cargo test --verbose --manifest-path tracer/Cargo.toml --all-features
+  

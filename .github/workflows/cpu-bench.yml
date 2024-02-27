@@ -1,6 +1,6 @@
 name: Cpu Bench
 
-on: [pull_request]
+on: [workflow_call]
 
 jobs:
   bench-cpu:
@@ -11,6 +11,7 @@ jobs:
         with:
           submodules: true
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
       - uses: boa-dev/criterion-compare-action@v3
         with:
           cwd: "tracer"

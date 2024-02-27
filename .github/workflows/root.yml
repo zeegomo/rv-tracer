@@ -1,0 +1,15 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build-and-test:
+    uses: ./.github/workflows/rust.yml
+  memory-bench:
+    needs: build-and-test
+    uses: ./.github/workflows/mem-bench.yml
+  cpu-bench:
+    needs: [memory-bench, build-and-test]
+    uses: ./.github/workflows/cpu-bench.yml
