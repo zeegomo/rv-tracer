@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  clone-and-cache:
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        components: clippy
+    - uses: Swatinem/rust-cache@v2
+  build-and-test:
+    uses: ./.github/workflows/rust.yaml
+  memory-bench:
+    uses: ./.github/workflows/mem-bench.yaml
+  cpu-bench:
+    uses: ./.github/workflows/cpu-bench.yaml
