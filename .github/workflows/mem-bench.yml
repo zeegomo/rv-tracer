@@ -7,6 +7,11 @@ jobs:
     name: fib exec mem
     runs-on: [alpha]
     steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
       - name: Run bench exec
         id: run_exec
         run: cargo bench --bench fib_exec >> $GITHUB_OUTPUT

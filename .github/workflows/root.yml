@@ -5,19 +5,9 @@ on:
     branches: [ "master" ]
 
 jobs:
-  clone-and-cache:
-    runs_on: [alpha]
-    steps:
-    - uses: actions/checkout@v3
-      with:
-        submodules: true
-    - uses: dtolnay/rust-toolchain@stable
-      with:
-        components: clippy
-    - uses: Swatinem/rust-cache@v2
   build-and-test:
-    uses: ./.github/workflows/rust.yaml
+    uses: ./.github/workflows/rust.yml
   memory-bench:
-    uses: ./.github/workflows/mem-bench.yaml
+    uses: ./.github/workflows/mem-bench.yml
   cpu-bench:
-    uses: ./.github/workflows/cpu-bench.yaml
+    uses: ./.github/workflows/cpu-bench.yml
