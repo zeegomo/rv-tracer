@@ -50,11 +50,7 @@ impl RangeChecker {
         range_trace_len: usize,
         n_segments: usize,
         segment_len: usize,
-    ) -> (
-        Vec<[Vec<Felem>; RANGE_WIDTH]>,
-        [Vec<Felem>; RANGE_WIDTH],
-        AuxTraceBuilder,
-    ) {
+    ) -> ([Vec<Felem>; RANGE_WIDTH], AuxTraceBuilder) {
         assert!(segment_len.is_power_of_two());
         // the first segment can hold segment_len - 1 rows from the original execution (the last one in padding)
         // while successive segments can only hold segment_len - 2 rows from the original execution
@@ -64,7 +60,6 @@ impl RangeChecker {
 
         let trace_len = trace_len.next_power_of_two();
         let RangeCheckTrace { trace, aux_builder } = self.into_trace(range_trace_len, trace_len);
-        let traces = super::utils::split_trace_with_padding(&trace, n_segments, segment_len);
-        (traces, trace, aux_builder)
+        (trace, aux_builder)
     }
 }

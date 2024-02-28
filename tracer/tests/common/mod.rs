@@ -183,7 +183,11 @@ impl<O: Op> Trace<O> {
 
     #[allow(dead_code)]
     pub fn generate_with_splits(&self, segment_len: u32) -> Vec<TraceTable<BaseElement>> {
-        exec(&self.program(), SegmentConfig::Split { segment_len })
+        let mut tables = exec(&self.program(), SegmentConfig::Split { segment_len });
+        for table in &mut tables {
+            table.build_segment();
+        }
+        tables
     }
 
     #[allow(dead_code)]
@@ -209,7 +213,11 @@ impl<const N: usize, O: Op> Trace<[O; N]> {
 
     #[allow(dead_code)]
     pub fn generate_with_splits(&self, segment_len: u32) -> Vec<TraceTable<BaseElement>> {
-        exec(&self.program(), SegmentConfig::Split { segment_len })
+        let mut tables = exec(&self.program(), SegmentConfig::Split { segment_len });
+        for table in &mut tables {
+            table.build_segment();
+        }
+        tables
     }
 
     pub fn program(&self) -> Program {
@@ -259,6 +267,7 @@ impl<O: Op + Arbitrary + 'static, P: Field + Clone + 'static> Arbitrary for Pert
         }
         let state = CpuState { regs: [0; 32] };
         let mut table = op.execute(state.clone());
+        table.build_segment();
         assert!(
             table.length() > (Self::op_start() + 1).next_power_of_two(),
             "table too short"
@@ -285,6 +294,7 @@ impl<O: Op + Arbitrary + 'static, P: Field + Clone + 'static> Arbitrary for Pert
 impl<O: Op, P: Field + Clone + 'static> Clone for PerturbedTrace<O, P> {
     fn clone(&self) -> Self {
         let mut table = self.op.execute(self.state.clone());
+        table.build_segment();
         table.update_row(Self::op_start(), &self.current);
         table.update_row(Self::op_start() + 1, &self.next);
         Self {

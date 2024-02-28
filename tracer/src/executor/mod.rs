@@ -2,8 +2,6 @@ mod cpu;
 pub mod memory;
 mod program;
 mod range;
-mod utils;
-
 use miden_processor::RangeCheckTrace;
 pub use program::Program;
 use range::RangeChecker;
@@ -74,12 +72,12 @@ pub fn exec(program: &Program, segment_config: SegmentConfig) -> Vec<TraceTable<
                 / (available_segment_length)
                 + 1;
 
-            let (cpu_traces, mut cpu_full_trace) =
+            let mut cpu_full_trace =
                 cpu.into_trace_with_splits(n_segments as usize, segment_len as usize);
-            let (mem_traces, mut mem_full_trace, mem_aux_builder) =
+            let (mut mem_full_trace, mem_aux_builder) =
                 memory.into_trace_with_splits(n_segments as usize, segment_len as usize);
 
-            let (range_traces, mut range_full_trace, aux_builder) = range.into_trace_with_splits(
+            let (mut range_full_trace, aux_builder) = range.into_trace_with_splits(
                 range_trace_len,
                 n_segments as usize,
                 segment_len as usize,
@@ -113,22 +111,13 @@ pub fn exec(program: &Program, segment_config: SegmentConfig) -> Vec<TraceTable<
 
             let aux_builder = AuxTraceBuilder::new(mem_aux_builder, aux_builder);
 
-            cpu_traces
-                .into_iter()
-                .zip(mem_traces)
-                .zip(range_traces)
-                .map(|((cpu, mem), range)| {
-                    cpu.into_iter().chain(mem).chain(range).collect::<Vec<_>>()
-                })
-                .enumerate()
-                .map(|(segment_n, columns)| {
-                    TraceTable::new(
-                        columns,
-                        aux_builder.clone().segmented(
-                            full_trace.clone(),
-                            segment_n,
-                            segment_len as usize,
-                        ),
+            (0..n_segments as usize)
+                .map(|segment_n| {
+                    TraceTable::new_segmented(
+                        full_trace.clone(),
+                        aux_builder.clone(),
+                        segment_n,
+                        segment_len as usize,
                     )
                 })
                 .collect::<Vec<_>>()

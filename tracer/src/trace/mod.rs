@@ -12,15 +12,18 @@ const NUM_RAND_ROWS: usize = 1;
 
 #[derive(Clone)]
 pub struct TraceTable<E: StarkField> {
-    inner: winterfell::TraceTable<E>,
+    inner: Rc<winterfell::TraceTable<E>>,
+    segment_n: usize,
+    segment_len: usize,
     layout: TraceLayout,
     aux_builder: AuxTraceBuilder<E>,
+    seg: ColMatrix<E::BaseField>,
 }
 
 #[derive(Clone)]
 pub struct AuxTraceBuilder<E: StarkField> {
-    mem: chiplets::aux_trace::AuxTraceBuilder,
-    range: range::AuxTraceBuilder,
+    mem: Rc<chiplets::aux_trace::AuxTraceBuilder>,
+    range: Rc<range::AuxTraceBuilder>,
     full_trace: Option<Rc<winterfell::TraceTable<E>>>,
     // if this trace is segment of a bigger trace, we build the full columns and then skip the first `skip` elements
     // and take the next `length` elements
@@ -31,8 +34,8 @@ pub struct AuxTraceBuilder<E: StarkField> {
 impl<E: StarkField> AuxTraceBuilder<E> {
     pub fn new(mem: chiplets::aux_trace::AuxTraceBuilder, range: range::AuxTraceBuilder) -> Self {
         Self {
-            mem,
-            range,
+            mem: Rc::new(mem),
+            range: Rc::new(range),
             full_trace: None,
             skip: None,
             length: None,
@@ -56,9 +59,29 @@ impl<Field: StarkField> TraceTable<Field> {
     pub fn new(trace: Vec<Vec<Field>>, aux_builder: AuxTraceBuilder<Field>) -> Self {
         let layout = TraceLayout::new(MAIN_TRACE_WIDTH, [AUX_TRACE_WIDTH; 1], [NUM_ALPHA_ELEMS; 1]);
         Self {
-            inner: winterfell::TraceTable::init(trace),
+            segment_len: trace[0].len(),
+            inner: Rc::new(winterfell::TraceTable::init(trace.clone())),
             layout,
-            aux_builder,
+            aux_builder: aux_builder,
+            segment_n: 0,
+            seg: ColMatrix::new(trace),
+        }
+    }
+
+    pub fn new_segmented(
+        trace: Rc<winterfell::TraceTable<Field>>,
+        aux_builder: AuxTraceBuilder<Field>,
+        segment_n: usize,
+        segment_len: usize,
+    ) -> Self {
+        let layout = TraceLayout::new(MAIN_TRACE_WIDTH, [AUX_TRACE_WIDTH; 1], [NUM_ALPHA_ELEMS; 1]);
+        Self {
+            inner: trace.clone(),
+            layout,
+            aux_builder: aux_builder.segmented(trace, segment_n, segment_len),
+            segment_n,
+            segment_len,
+            seg: ColMatrix::new(vec![vec![Field::BaseField::ZERO; 2]]),
         }
     }
 }
@@ -66,10 +89,14 @@ impl<Field: StarkField> TraceTable<Field> {
 impl<E: StarkField> std::fmt::Display for TraceTable<E> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> Result<(), core::fmt::Error> {
         writeln!(f, "TraceTable")?;
-        let length = self.inner.get_column(0).len();
         for i in 0..MAIN_TRACE_WIDTH {
-            for j in 0..length {
-                write!(f, "{} ", self.inner.get(i, j))?;
+            for j in 0..self.segment_len {
+                write!(
+                    f,
+                    "{} ",
+                    self.inner
+                        .get(i, j + (self.segment_len - 2) * self.segment_n)
+                )?;
             }
             writeln!(f)?;
         }
@@ -85,7 +112,7 @@ impl Trace for TraceTable<BaseElement> {
     }
 
     fn length(&self) -> usize {
-        self.inner.length()
+        self.segment_len
     }
 
     fn meta(&self) -> &[u8] {
@@ -93,7 +120,9 @@ impl Trace for TraceTable<BaseElement> {
     }
 
     fn main_segment(&self) -> &ColMatrix<Self::BaseField> {
-        self.inner.main_segment()
+        // TODO: single segment proofs should not pay the cost of cloning the segment
+        self.assert_segment_built();
+        &self.seg
     }
 
     fn build_aux_segment<E>(
@@ -161,7 +190,10 @@ impl Trace for TraceTable<BaseElement> {
     }
 
     fn read_main_frame(&self, row_idx: usize, frame: &mut EvaluationFrame<Self::BaseField>) {
-        self.inner.read_main_frame(row_idx, frame)
+        let main_frame = self.main_segment();
+        let next_row_idx = (row_idx + 1) % self.length();
+        main_frame.read_row_into(row_idx, frame.current_mut());
+        main_frame.read_row_into(next_row_idx, frame.next_mut());
     }
 
     fn get_info(&self) -> TraceInfo {
@@ -205,14 +237,54 @@ impl Trace for TraceTable<BaseElement> {
 impl TraceTable<BaseElement> {
     /// Reads a single row from this execution trace into the provided target.
     pub fn read_row_into(&self, step: usize, target: &mut [BaseElement]) {
-        self.inner.read_row_into(step, target);
+        self.main_segment().read_row_into(step, target);
+    }
+
+    fn assert_segment_built(&self) {
+        if self.segment_len == self.inner.length() {
+            return;
+        }
+        assert_eq!(self.segment_len, self.seg.num_rows(), "segment not built");
     }
 
     pub fn get(&self, column: usize, step: usize) -> BaseElement {
-        self.inner.get(column, step)
+        self.main_segment().get(column, step)
     }
 
     pub fn update_row(&mut self, step: usize, state: &[BaseElement]) {
-        self.inner.update_row(step, state);
+        self.assert_segment_built();
+        self.seg.update_row(step, state);
+    }
+
+    // Clone the this segment trace table from the full trace table and overwrite the last row
+    // with random padding
+    // This is necessary because we must return a ColMatrix which has to own its data
+    pub fn build_segment(&mut self) {
+        if self.segment_len == self.seg.num_rows() {
+            return;
+        }
+        let mut cols = vec![vec![BaseElement::ZERO; self.segment_len]; MAIN_TRACE_WIDTH];
+        for i in 0..MAIN_TRACE_WIDTH {
+            for j in 0..self.segment_len {
+                cols[i][j] = self
+                    .inner
+                    .get(i, j + (self.segment_len - 2) * self.segment_n);
+            }
+        }
+
+        use miden_processor::crypto::RandomCoin;
+        use miden_processor::crypto::RpoRandomCoin;
+        let mut rng = RpoRandomCoin::new(&[(1u32.into())]);
+
+        for i in 0..MAIN_TRACE_WIDTH {
+            *cols[i].last_mut().unwrap() = rng.draw().expect("failed to draw a random value");
+        }
+
+        self.seg = ColMatrix::new(cols);
+    }
+
+    // Drop the segment trace table to free up memory
+    pub fn drop_segment(&mut self) {
+        self.seg = ColMatrix::new(vec![vec![BaseElement::ZERO; 2]]);
     }
 }
