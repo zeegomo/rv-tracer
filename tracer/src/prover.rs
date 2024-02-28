@@ -411,12 +411,12 @@ where
         let (t1_lde, t1_tree, _) = self
             .build_trace_commitment::<<Self as Prover>::BaseField, MAIN_TRACE_WIDTH>(
                 t.main_segment(),
-                &domain,
+                domain,
             );
         t.drop_segment();
         let t1_aux_segment = t.build_aux_segment(&[], rand_elements).unwrap();
         let (t1_aux_lde, t1_aux_tree, _) =
-            self.build_trace_commitment::<E, AUX_SEGMENT_WIDTH>(&t1_aux_segment, &domain);
+            self.build_trace_commitment::<E, AUX_SEGMENT_WIDTH>(&t1_aux_segment, domain);
 
         let mut commitment = TraceCommitment::new(t1_lde, t1_tree, domain.trace_to_lde_blowup());
         commitment.add_segment(t1_aux_lde, t1_aux_tree);

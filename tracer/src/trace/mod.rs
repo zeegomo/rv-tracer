@@ -62,7 +62,7 @@ impl<Field: StarkField> TraceTable<Field> {
             segment_len: trace[0].len(),
             inner: Rc::new(winterfell::TraceTable::init(trace.clone())),
             layout,
-            aux_builder: aux_builder,
+            aux_builder,
             segment_n: 0,
             seg: ColMatrix::new(trace),
         }
@@ -264,9 +264,9 @@ impl TraceTable<BaseElement> {
             return;
         }
         let mut cols = vec![vec![BaseElement::ZERO; self.segment_len]; MAIN_TRACE_WIDTH];
-        for i in 0..MAIN_TRACE_WIDTH {
-            for j in 0..self.segment_len {
-                cols[i][j] = self
+        for (i, col) in cols.iter_mut().enumerate() {
+            for (j, elem) in col.iter_mut().enumerate() {
+                *elem = self
                     .inner
                     .get(i, j + (self.segment_len - 2) * self.segment_n);
             }
@@ -276,8 +276,8 @@ impl TraceTable<BaseElement> {
         use miden_processor::crypto::RpoRandomCoin;
         let mut rng = RpoRandomCoin::new(&[(1u32.into())]);
 
-        for i in 0..MAIN_TRACE_WIDTH {
-            *cols[i].last_mut().unwrap() = rng.draw().expect("failed to draw a random value");
+        for col in &mut cols {
+            *col.last_mut().unwrap() = rng.draw().expect("failed to draw a random value");
         }
 
         self.seg = ColMatrix::new(cols);
