@@ -298,11 +298,7 @@ impl Memory {
         self,
         n_segments: usize,
         segment_len: usize,
-    ) -> (
-        Vec<[Vec<BaseElement>; MEMORY_TRACE_WIDTH]>,
-        [Vec<Felem>; MEMORY_TRACE_WIDTH],
-        AuxTraceBuilder,
-    ) {
+    ) -> ([Vec<Felem>; MEMORY_TRACE_WIDTH], AuxTraceBuilder) {
         assert!(segment_len.is_power_of_two());
         // the first segment can hold segment_len - 1 rows from the original execution (the last one in padding)
         // while successive segments can only hold segment_len - 2 rows from the original execution
@@ -313,13 +309,8 @@ impl Memory {
         let trace_len = trace_len.next_power_of_two();
 
         let (full_trace, aux_builder) = self.into_trace(trace_len);
-        let traces = super::utils::split_trace_with_padding::<MEMORY_TRACE_WIDTH, _>(
-            &full_trace,
-            n_segments,
-            segment_len,
-        );
 
-        (traces, full_trace, aux_builder)
+        (full_trace, aux_builder)
     }
 
     pub fn trace_len(&self) -> usize {

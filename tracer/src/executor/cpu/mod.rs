@@ -249,15 +249,13 @@ impl Cpu {
         }
     }
 
-    fn into_trace_inner(self, trace_len: usize) -> [Vec<Felem>; CPU_TRACE_WIDTH] {
-        let mut trace = self.trace;
-
-        for (i, column) in trace.iter_mut().enumerate() {
+    fn into_trace_inner(mut self, trace_len: usize) -> [Vec<Felem>; CPU_TRACE_WIDTH] {
+        for (i, column) in self.trace.iter_mut().enumerate() {
             let pad = trace_len - column.len();
             Self::pad_column(column, i, pad);
         }
 
-        trace
+        self.trace
     }
 
     pub fn into_trace(self, trace_len: usize) -> [Vec<Felem>; CPU_TRACE_WIDTH] {
@@ -271,10 +269,7 @@ impl Cpu {
         self,
         n_segments: usize,
         segment_len: usize,
-    ) -> (
-        Vec<[Vec<Felem>; CPU_TRACE_WIDTH]>,
-        [Vec<Felem>; CPU_TRACE_WIDTH],
-    ) {
+    ) -> [Vec<Felem>; CPU_TRACE_WIDTH] {
         assert!(segment_len.is_power_of_two());
 
         // the first segment can hold segment_len - 1 rows from the original execution (the last one in padding)
@@ -284,15 +279,7 @@ impl Cpu {
         assert!(trace_len >= self.trace_len());
         let trace_len = trace_len.next_power_of_two();
 
-        let full_trace = self.into_trace_inner(trace_len);
-        (
-            super::utils::split_trace_with_padding::<CPU_TRACE_WIDTH, _>(
-                &full_trace,
-                n_segments,
-                segment_len,
-            ),
-            full_trace,
-        )
+        self.into_trace_inner(trace_len)
     }
 }
 

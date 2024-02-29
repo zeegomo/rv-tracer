@@ -20,7 +20,7 @@ const GRINDING_FACTOR: u32 = 5;
 const FRI_FOLDING_FACTOR: usize = 4;
 const FRI_REMAINDER_MAX_DEGREE: usize = 255;
 
-const SEGMENT_LENGTH: usize = 1 << 11;
+const SEGMENT_LENGTH: usize = 1 << 12;
 
 pub type Blake3_192 = winterfell::crypto::hashers::Blake3_192<BaseElement>;
 
