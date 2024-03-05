@@ -39,7 +39,7 @@ jobs:
     runs-on: [alpha]
     strategy:
       matrix:
-        segment_len: [8]
+        segment_len: [2048]
     steps:
       - uses: actions/checkout@v3
         with:
