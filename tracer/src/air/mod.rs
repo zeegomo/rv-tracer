@@ -18,7 +18,7 @@ pub struct RiscvAir {
     inputs: Inputs,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Hash)]
 pub struct Inputs {
     // the program that was executed
     pub program: Program,

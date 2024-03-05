@@ -11,7 +11,7 @@ pub enum SegmentConfig {
     Split { segment_len: u32 },
 }
 
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, PartialEq, Hash)]
 pub struct Segment {
     // which segment this proof is for
     pub segment_n: u32,

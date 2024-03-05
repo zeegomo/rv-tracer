@@ -5,7 +5,9 @@ use once_cell::sync::Lazy;
 use rv_tracer::{
     air::{Inputs, Segment, SegmentConfig},
     executor::Program,
-    prove_from_elf, verify, verify_segmented,
+    prove_from_elf,
+    prover::cache::{DiskCache, NoCache},
+    verify, verify_segmented,
 };
 use winterfell::{math::fields::f64::BaseElement, FieldExtension, ProofOptions};
 
@@ -14,7 +16,7 @@ use common::{Blake3_192, PROOF_OPTIONS};
 const LOOP_ELF: &[u8] = include_bytes!("../../examples/loop/loop.bin");
 const FIBONACCI_ELF: &[u8] = include_bytes!("../../examples/fibonacci/fibonacci.bin");
 
-const SEGMENT_LEN: u32 = 1 << 12;
+const SEGMENT_LEN: u32 = 1 << 4;
 const NUM_QUERIES: usize = 10;
 const BLOWUP_FACTOR: usize = 16;
 const GRINDING_FACTOR: u32 = 5;
@@ -40,6 +42,7 @@ fn prove_and_verify_loop() {
         elf,
         PROOF_OPTIONS.clone(),
         SegmentConfig::Single,
+        DiskCache::new(),
     )
     .unwrap();
     verify::<Blake3_192>(
@@ -61,6 +64,7 @@ fn prove_and_verify_fibonacci() {
         elf,
         PROOF_OPTIONS.clone(),
         SegmentConfig::Single,
+        DiskCache::new(),
     )
     .unwrap();
     verify::<Blake3_192>(
@@ -84,6 +88,7 @@ fn prove_and_verify_loop_split() {
         SegmentConfig::Split {
             segment_len: SEGMENT_LEN,
         },
+        DiskCache::new(),
     )
     .unwrap();
     verify_segmented::<Blake3_192>(
@@ -108,6 +113,7 @@ fn prove_and_verify_fibonacci_split() {
         SegmentConfig::Split {
             segment_len: SEGMENT_LEN,
         },
+        DiskCache::new(),
     )
     .unwrap();
     verify_segmented::<Blake3_192>(
