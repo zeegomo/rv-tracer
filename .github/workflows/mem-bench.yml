@@ -37,7 +37,7 @@ jobs:
           name: fib-verify
           path: tracer/dhat-heap.json
 
-  bench-segmented-mem:
+  bench_segmented_mem:
     name: Benchmark fibonacci 1000 segmented
     runs-on: [alpha]
     outputs: 
@@ -71,14 +71,14 @@ jobs:
   write_report:
     runs-on: [alpha]
     name: Write report
-    needs: [bench-segmented-mem, bench-reference-mem]
+    needs: [bench_segmented_mem, bench-reference-mem]
     steps:
       - uses: actions/github-script@v6
         with:
           script: |
-            let prove = JSON.stringify(${{ needs.bench-segmented-mem.outputs }});
-            let verify = JSON.stringify(${{ needs.bench-segmented-mem.outputs }});
-            let prov = ${{ needs.bench-segmented-mem.outputs.out }}
+            let prove = JSON.stringify(${{ needs.bench_segmented_mem.outputs }});
+            let verify = JSON.stringify(${{ needs.bench_segmented_mem.outputs }});
+            let prov = ${{ needs.bench_segmented_mem.outputs.out }}
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
