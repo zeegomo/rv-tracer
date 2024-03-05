@@ -60,6 +60,7 @@ jobs:
           path: tracer/dhat-heap.json
 
   write_report:
+    runs-on: [alpha]
     name: Write report
     needs: [bench-segmented-mem, bench-reference-mem]
     steps:
@@ -74,7 +75,7 @@ jobs:
               repo: context.repo.repo,
               body: "**Fib 1000 peak memory usage segmented (4K)**:\n * prove: " + prove + " kB\n * verify: " + verify + " kB"
             })
-       - uses: actions/github-script@v6
+      - uses: actions/github-script@v6
         with:
           script: |
             let exec = ${{ needs.bench-reference-mem.steps.run_exec.outputs.out }}[3] / 1024;
