@@ -1,3 +1,4 @@
+use clap::Parser;
 use dhat::HeapStats;
 use miden_processor::QuadExtension;
 use once_cell::sync::Lazy;
@@ -20,8 +21,6 @@ const GRINDING_FACTOR: u32 = 5;
 const FRI_FOLDING_FACTOR: usize = 4;
 const FRI_REMAINDER_MAX_DEGREE: usize = 255;
 
-const SEGMENT_LENGTH: usize = 1 << 12;
-
 pub type Blake3_192 = winterfell::crypto::hashers::Blake3_192<BaseElement>;
 
 pub static PROOF_OPTIONS: Lazy<ProofOptions> = Lazy::new(|| {
@@ -35,19 +34,16 @@ pub static PROOF_OPTIONS: Lazy<ProofOptions> = Lazy::new(|| {
     )
 });
 
+const DEFAULT_SEG_LEN: u32 = 1 << 12;
+
 fn fibonacci_1000() -> Program {
     let elf = Elf32::parse(FIBONACCI_ELF).unwrap();
     Program::from(&elf)
 }
 
-fn main() {
+fn run_bench(segment_len: u32) -> HeapStats {
     let _profiler = dhat::Profiler::new_heap();
-    let traces = exec(
-        &fibonacci_1000(),
-        SegmentConfig::Split {
-            segment_len: SEGMENT_LENGTH as u32,
-        },
-    );
+    let traces = exec(&fibonacci_1000(), SegmentConfig::Split { segment_len });
     let n_cycles = traces.iter().map(|t| t.length() - 1).sum::<usize>();
     let inputs = Inputs {
         program: fibonacci_1000(),
@@ -60,12 +56,20 @@ fn main() {
         inputs,
     )
     .unwrap();
-    let HeapStats {
-        total_blocks,
-        total_bytes,
-        max_blocks,
-        max_bytes,
-        ..
-    } = dhat::HeapStats::get();
-    println!("out=[{total_blocks},{total_bytes},{max_blocks},{max_bytes}]");
+
+    dhat::HeapStats::get()
+}
+
+#[derive(Parser, Debug)]
+struct Args {
+    #[clap(short, long, default_value_t = DEFAULT_SEG_LEN)]
+    segment_len: u32,
+
+    #[clap(short, long, default_value = "false")]
+    bench: bool,
+}
+
+fn main() {
+    let args = Args::parse();
+    println!("prove_peak_{}={}", args.segment_len, run_bench(args.segment_len).max_bytes);
 }

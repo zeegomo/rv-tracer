@@ -3,8 +3,8 @@ name: Memory Bench
 on: [workflow_call]
 
 jobs:
-  bench-exec-mem:
-    name: fib exec mem
+  bench-reference-mem:
+    name: Benchmark fibonacci 1000 reference
     runs-on: [alpha]
     steps:
       - uses: actions/checkout@v3
@@ -26,13 +26,6 @@ jobs:
         with:
           name: fib-prove
           path: tracer/dhat-heap.json
-      - name: Run bench prove segmented
-        id: run_prove_segmented
-        run: cargo bench --bench fib_prove_segmented >> $GITHUB_OUTPUT
-      - uses: actions/upload-artifact@v4
-        with:
-          name: fib-prove-segmented
-          path: tracer/dhat-heap.json
       - name: Run bench verify
         id: run_verify
         run: cargo bench --bench fib_verify >> $GITHUB_OUTPUT
@@ -40,26 +33,56 @@ jobs:
         with:
           name: fib-verify
           path: tracer/dhat-heap.json
+
+  bench-segmented-mem:
+    name: Benchmark fibonacci 1000 segmented
+    runs-on: [alpha]
+    strategy:
+      matrix:
+        segment_len: [8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768]
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run bench prove segmented
+        run: cargo bench --bench fib_prove_segmented -- --segment-len ${{ matrix.segment_len }}  >> $GITHUB_OUTPUT
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fib-prove-segmented
+          path: tracer/dhat-heap.json
       - name: Run bench verify segmented
-        id: run_verify_segmented
-        run: cargo bench --bench fib_verify_segmented >> $GITHUB_OUTPUT
+        run: cargo bench --bench fib_verify_segmented -- --segment-len ${{ matrix.segment_len }} >> $GITHUB_OUTPUT
       - uses: actions/upload-artifact@v4
         with:
           name: fib-verify-segmented
           path: tracer/dhat-heap.json
+
+  write_report:
+    name: Write report
+    needs: [bench-segmented-mem, bench-reference-mem]
+    steps:
       - uses: actions/github-script@v6
         with:
           script: |
+            let prove = join(needs.bench-segmented-men.outputs.prove_*, '\t');
+            let verify = join(needs.bench-segmented-men.outputs.verify_*, '\t');
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: "**Fib 1000 peak memory usage**:\n * exec: " + ${{ steps.run_exec.outputs.out }}[3] / 1024 + " kB\n * prove: " + ${{ steps.run_prove.outputs.out }}[3] / 1024 + " kB\n * verify: " + ${{ steps.run_verify.outputs.out }}[3] / 1024 + " kB"
+              body: "**Fib 1000 peak memory usage segmented (4K)**:\n * prove: " + prove + " kB\n * verify: " + verify + " kB"
             })
-
+       - uses: actions/github-script@v6
+        with:
+          script: |
+            let exec = ${{ needs.bench-reference-mem.steps.run_exec.outputs.out }}[3] / 1024;
+            let prove =  ${{ needs.bench-reference-mem.steps.run_prove.outputs.out }}[3] / 1024;
+            let verify = ${{ needs.bench-reference-mem.steps.run_verify.outputs.out }}[3] / 1024;
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: "**Fib 1000 peak memory usage segmented (4K)**:\n * prove: " + ${{ steps.run_prove_segmented.outputs.out }}[3] / 1024 + " kB\n * verify: " + ${{ steps.run_verify_segmented.outputs.out }}[3] / 1024 + " kB"
+              body: "**Fib 1000 peak memory usage**:\n * exec: " + exec + " kB\n * prove: " + prove + " kB\n * verify: " + verify + " kB"
             })
