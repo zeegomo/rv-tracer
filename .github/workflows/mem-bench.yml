@@ -67,8 +67,8 @@ jobs:
       - uses: actions/github-script@v6
         with:
           script: |
-            let prove = JSON.stringify(${{ needs.bench-segmented-men.outputs }});
-            let verify = JSON.stringify(${{ needs.bench-segmented-men.outputs }});
+            let prove = JSON.stringify(${{ needs.bench-segmented-mem.outputs }});
+            let verify = JSON.stringify(${{ needs.bench-segmented-mem.outputs }});
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -78,12 +78,12 @@ jobs:
       - uses: actions/github-script@v6
         with:
           script: |
-            let exec = ${{ needs.bench-reference-mem.steps.run_exec.outputs.out }}[3] / 1024;
+            let ex = ${{ needs.bench-reference-mem.steps.run_exec.outputs.out }}[3] / 1024;
             let prove =  ${{ needs.bench-reference-mem.steps.run_prove.outputs.out }}[3] / 1024;
             let verify = ${{ needs.bench-reference-mem.steps.run_verify.outputs.out }}[3] / 1024;
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: "**Fib 1000 peak memory usage**:\n * exec: " + exec + " kB\n * prove: " + prove + " kB\n * verify: " + verify + " kB"
+              body: "**Fib 1000 peak memory usage**:\n * exec: " + ex + " kB\n * prove: " + prove + " kB\n * verify: " + verify + " kB"
             })
