@@ -57,7 +57,7 @@ fn run_bench(segment_len: u32) -> HeapStats {
     .unwrap();
 
     let size = bincode::serialized_size(&proofs).unwrap() + bincode::serialized_size(&link_proofs).unwrap();
-    println!("size-{}={}", segment_len, size);
+    println!("size_{}={}", segment_len, size);
 
     let _profiler = dhat::Profiler::new_heap();
     // clone to record allocations in profiler
@@ -85,7 +85,7 @@ struct Args {
 fn main() {
     let args = Args::parse();
     println!(
-        "verify-peak-{}={}",
+        "peak_{}={}",
         args.segment_len,
         run_bench(args.segment_len).max_bytes
     );
