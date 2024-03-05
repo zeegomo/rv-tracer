@@ -6,6 +6,9 @@ jobs:
   bench-reference-mem:
     name: Benchmark fibonacci 1000 reference
     runs-on: [alpha]
+    outputs:
+      prove: ${{ steps.run_prove.out }}
+      verify: ${{ steps.run_verify.out }}
     steps:
       - uses: actions/checkout@v3
         with:
@@ -43,6 +46,7 @@ jobs:
     outputs: 
       peak_2048_prove: ${{ steps.prove.peak_2048 }}
       peak_2048_verify: ${{ steps.verify.peak_2048 }}
+      out: "out"
     steps:
       - uses: actions/checkout@v3
         with:
@@ -83,9 +87,8 @@ jobs:
       - uses: actions/github-script@v6
         with:
           script: |
-            let ex = ${{ needs.bench-reference-mem.steps.run_exec.outputs.out }}[3] / 1024;
-            let prove =  ${{ needs.bench-reference-mem.steps.run_prove.outputs.out }}[3] / 1024;
-            let verify = ${{ needs.bench-reference-mem.steps.run_verify.outputs.out }}[3] / 1024;
+            let prove =  ${{ needs.bench-reference-mem.outputs.prove }}[3] / 1024;
+            let verify = ${{ needs.bench-reference-mem.outputs.verify }}[3] / 1024;
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
