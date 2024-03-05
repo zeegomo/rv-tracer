@@ -67,8 +67,8 @@ jobs:
       - uses: actions/github-script@v6
         with:
           script: |
-            let prove = join(needs.bench-segmented-men.outputs, '\t');
-            let verify = join(needs.bench-segmented-men.outputs, '\t');
+            let prove = JSON.stringify(needs.bench-segmented-men.outputs);
+            let verify = JSON.stringify(needs.bench-segmented-men.outputs);
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
