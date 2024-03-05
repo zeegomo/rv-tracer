@@ -42,12 +42,7 @@ fn fibonacci_1000() -> Program {
 }
 
 fn run_bench(segment_len: u32) -> HeapStats {
-    let traces = exec(
-        &fibonacci_1000(),
-        SegmentConfig::Split {
-            segment_len
-        },
-    );
+    let traces = exec(&fibonacci_1000(), SegmentConfig::Split { segment_len });
     let n_cycles = traces.iter().map(|t| t.length() - 1).sum::<usize>();
     let inputs = Inputs {
         program: fibonacci_1000(),
@@ -87,5 +82,9 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-    println!("verify_peak_{}={}", args.segment_len, run_bench(args.segment_len).max_bytes);
+    println!(
+        "verify-peak-{}={}",
+        args.segment_len,
+        run_bench(args.segment_len).max_bytes
+    );
 }

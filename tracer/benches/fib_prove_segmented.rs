@@ -71,5 +71,9 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-    println!("prove_peak_{}={}", args.segment_len, run_bench(args.segment_len).max_bytes);
+    println!(
+        "prove-peak-{}={}",
+        args.segment_len,
+        run_bench(args.segment_len).max_bytes
+    );
 }

@@ -1,9 +1,5 @@
 use dhat::HeapStats;
 use miden_processor::QuadExtension;
-use nix::{
-    sys::wait::waitpid,
-    unistd::{fork, ForkResult},
-};
 use once_cell::sync::Lazy;
 use rv_tracer::{
     air::{Inputs, Segment, SegmentConfig},
@@ -43,61 +39,33 @@ fn fibonacci_1000() -> Program {
 }
 
 fn main() {
-    let _profiler = dhat::Profiler::new_heap();
-    let file_path = "fibonacci_1000_proof";
+    let trace = exec(&fibonacci_1000(), SegmentConfig::Single)
+        .pop()
+        .unwrap();
+    let n_cycles = trace.length() - 1;
+    let inputs = Inputs {
+        program: fibonacci_1000(),
+        segment: Segment { segment_n: 0 },
+        n_cycles,
+    };
+    let proof =
+        prove::<Blake3_192, QuadExtension<BaseElement>>(trace, PROOF_OPTIONS.clone(), inputs)
+            .unwrap();
 
-    match unsafe { fork() } {
-        Ok(ForkResult::Parent { child, .. }) => {
-            waitpid(child, None).unwrap();
-            let mut proof = std::fs::read(file_path).unwrap();
-            let n_cycles =
-                usize::from_le_bytes(proof.split_off(proof.len() - 8).try_into().unwrap());
-            let proof = StarkProof::from_bytes(&proof).unwrap();
-            let inputs = Inputs {
-                program: fibonacci_1000(),
-                segment: Segment { segment_n: 0 },
-                n_cycles,
-            };
-            verify::<Blake3_192>(proof, inputs).unwrap();
-            let HeapStats {
-                total_blocks,
-                total_bytes,
-                max_blocks,
-                max_bytes,
-                ..
-            } = dhat::HeapStats::get();
-            println!("out=[{total_blocks},{total_bytes},{max_blocks},{max_bytes}]");
-        }
-        Ok(ForkResult::Child) => {
-            // we need to prove the program in a different process so that it does not interfere
-            // with verify profiling
-            let trace = exec(&fibonacci_1000(), SegmentConfig::Single)
-                .pop()
-                .unwrap();
-            let n_cycles = trace.length() - 1;
-            let inputs = Inputs {
-                program: fibonacci_1000(),
-                segment: Segment { segment_n: 0 },
-                n_cycles,
-            };
-            let proof = prove::<Blake3_192, QuadExtension<BaseElement>>(
-                trace,
-                PROOF_OPTIONS.clone(),
-                inputs,
-            )
-            .unwrap();
-            std::fs::write(
-                file_path,
-                proof
-                    .to_bytes()
-                    .into_iter()
-                    .chain(n_cycles.to_le_bytes())
-                    .collect::<Vec<_>>(),
-            )
-            .unwrap();
-            // exit the child process so that we don't save profilings here
-            unsafe { libc::_exit(0) };
-        }
-        Err(_) => panic!("Fork failed"),
-    }
+    let _profiler = dhat::Profiler::new_heap();
+    let proof = proof.clone();
+    let inputs = Inputs {
+        program: fibonacci_1000(),
+        segment: Segment { segment_n: 0 },
+        n_cycles,
+    };
+    verify::<Blake3_192>(proof, inputs).unwrap();
+    let HeapStats {
+        total_blocks,
+        total_bytes,
+        max_blocks,
+        max_bytes,
+        ..
+    } = dhat::HeapStats::get();
+    println!("out=[{total_blocks},{total_bytes},{max_blocks},{max_bytes}]");
 }
