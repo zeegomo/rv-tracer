@@ -60,7 +60,6 @@ fn run_bench(segment_len: u32) -> HeapStats {
     // clone to record allocations in profiler
     let proofs = proofs.clone();
     let link_proofs = link_proofs.clone();
-    println!("{:?}", dhat::HeapStats::get());
     let inputs = Inputs {
         program: fibonacci_1000(),
         segment: Segment { segment_n: 0 },
