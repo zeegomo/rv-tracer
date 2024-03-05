@@ -39,7 +39,7 @@ jobs:
     runs-on: [alpha]
     strategy:
       matrix:
-        segment_len: [8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768]
+        segment_len: [8]
     steps:
       - uses: actions/checkout@v3
         with:
@@ -67,8 +67,8 @@ jobs:
       - uses: actions/github-script@v6
         with:
           script: |
-            let prove = join(needs.bench-segmented-men.outputs.prove_*, '\t');
-            let verify = join(needs.bench-segmented-men.outputs.verify_*, '\t');
+            let prove = join(needs.bench-segmented-men.outputs, '\t');
+            let verify = join(needs.bench-segmented-men.outputs, '\t');
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,

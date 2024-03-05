@@ -56,6 +56,9 @@ fn run_bench(segment_len: u32) -> HeapStats {
     )
     .unwrap();
 
+    let size = bincode::serialized_size(&proofs).unwrap() + bincode::serialized_size(&link_proofs).unwrap();
+    println!("size-{}={}", segment_len, size);
+
     let _profiler = dhat::Profiler::new_heap();
     // clone to record allocations in profiler
     let proofs = proofs.clone();
