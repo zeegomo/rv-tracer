@@ -40,13 +40,13 @@ jobs:
   bench-segmented-mem:
     name: Benchmark fibonacci 1000 segmented
     runs-on: [alpha]
-    strategy:
-      matrix:
-        segment_len: [2048]
     outputs: 
       peak_2048_prove: ${{ steps.prove.peak_2048 }}
       peak_2048_verify: ${{ steps.verify.peak_2048 }}
       out: "out"
+    strategy:
+      matrix:
+        segment_len: [2048]
     steps:
       - uses: actions/checkout@v3
         with:
@@ -78,6 +78,7 @@ jobs:
           script: |
             let prove = JSON.stringify(${{ needs.bench-segmented-mem.outputs }});
             let verify = JSON.stringify(${{ needs.bench-segmented-mem.outputs }});
+            let prov = ${{ needs.bench-segmented-mem.outputs.out }}
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -93,5 +94,5 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: "**Fib 1000 peak memory usage**:\n * exec: " + ex + " kB\n * prove: " + prove + " kB\n * verify: " + verify + " kB"
+              body: "**Fib 1000 peak memory usage**:\n * exec:  kB\n * prove: " + prove + " kB\n * verify: " + verify + " kB"
             })
