@@ -41,8 +41,8 @@ jobs:
       matrix:
         segment_len: [2048]
     outputs: 
-      peak_2048_prove: ${{ steps.prove.prove_peak_2048 }}
-      peak_2048_verify: ${{ steps.verify.verify_peak_2048 }}
+      peak_2048_prove: ${{ steps.prove.peak_2048 }}
+      peak_2048_verify: ${{ steps.verify.peak_2048 }}
     steps:
       - uses: actions/checkout@v3
         with:
