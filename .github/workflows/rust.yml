@@ -21,6 +21,7 @@ jobs:
       run: cargo clippy -- -Dwarnings
   build-and-test:
     runs-on: [alpha]
+    needs: clippy
     steps:
     - uses: actions/checkout@v3
       with:
@@ -28,7 +29,7 @@ jobs:
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
     - name: Build
-      run: cargo build --verbose --manifest-path tracer/Cargo.toml
+      run: cargo build --verbose --manifest-path tracer/Cargo.toml --all-features
     - name: Run tests
       run: cargo test --verbose --manifest-path tracer/Cargo.toml --all-features
   

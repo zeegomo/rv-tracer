@@ -3,7 +3,8 @@ use miden_processor::QuadExtension;
 use once_cell::sync::Lazy;
 use rv_tracer::{
     air::{Inputs, Segment, SegmentConfig},
-    prove, prove_segmented, verify, verify_segmented,
+    prove, prove_segmented,
+    verify, verify_segmented,
 };
 use rvsim::elf::Elf32;
 use winterfell::{math::fields::f64::BaseElement, FieldExtension, ProofOptions, Trace};
@@ -82,6 +83,65 @@ pub fn loop_15(c: &mut Criterion) {
     });
 }
 
+macro_rules! segmented_fib_prove {
+    ($c:expr, $seg_len:expr) => {
+        $c.bench_function(&format!("cpu fibonacci prove seg: {}", $seg_len), |b| {
+            b.iter(|| {
+                let elf = Elf32::parse(FIBONACCI_ELF).unwrap();
+                let program = rv_tracer::executor::Program::from(&elf);
+                let traces = rv_tracer::executor::exec(
+                    &program,
+                    SegmentConfig::Split {
+                        segment_len: $seg_len,
+                    },
+                );
+                let n_cycles = traces.iter().map(|t| t.length() - 1).sum::<usize>();
+                let inputs = Inputs {
+                    program: program.clone(),
+                    segment: Segment { segment_n: 0 },
+                    n_cycles,
+                };
+                prove_segmented::<Blake3_192, QuadExtension<BaseElement>>(
+                    traces,
+                    black_box(PROOF_OPTIONS.clone()),
+                    inputs,
+                )
+            })
+        });
+    };
+}
+
+macro_rules! segmented_fib_verify {
+    ($c:expr, $seg_len:expr) => {
+        $c.bench_function(&format!("cpu fibonacci verify seg: {}", $seg_len), |b| {
+            let elf = Elf32::parse(FIBONACCI_ELF).unwrap();
+            let program = rv_tracer::executor::Program::from(&elf);
+            let traces = rv_tracer::executor::exec(
+                &program,
+                SegmentConfig::Split {
+                    segment_len: $seg_len,
+                },
+            );
+            let n_cycles = traces.iter().map(|t| t.length() - 1).sum::<usize>();
+            let inputs = Inputs {
+                program: program.clone(),
+                segment: Segment { segment_n: 0 },
+                n_cycles,
+            };
+            let (proofs, link_proofs) =
+                prove_segmented::<Blake3_192, QuadExtension<BaseElement>>(
+                    traces,
+                    black_box(PROOF_OPTIONS.clone()),
+                    inputs.clone(),
+                )
+                .unwrap();
+            b.iter(|| {
+                verify_segmented::<Blake3_192>(proofs.clone(), link_proofs.clone(), inputs.clone())
+            })
+        });
+    };
+}
+
 pub fn fibonacci_1000(c: &mut Criterion) {
     c.bench_function("cpu fibonacci prove", |b| {
         b.iter(|| {
@@ -103,53 +163,19 @@ pub fn fibonacci_1000(c: &mut Criterion) {
         })
     });
 
-    c.bench_function("cpu fibonacci prove 1 segment (32K)", |b| {
-        b.iter(|| {
-            let elf = Elf32::parse(FIBONACCI_ELF).unwrap();
-            let program = rv_tracer::executor::Program::from(&elf);
-            let traces = rv_tracer::executor::exec(
-                &program,
-                SegmentConfig::Split {
-                    segment_len: 1 << 15,
-                },
-            );
-            let n_cycles = traces.iter().map(|t| t.length() - 1).sum::<usize>();
-            let inputs = Inputs {
-                program: program.clone(),
-                segment: Segment { segment_n: 0 },
-                n_cycles,
-            };
-            prove_segmented::<Blake3_192, QuadExtension<BaseElement>>(
-                traces,
-                black_box(PROOF_OPTIONS.clone()),
-                inputs,
-            )
-        })
-    });
-
-    c.bench_function("cpu fibonacci prove segment 8 segments (4K) ", |b| {
-        b.iter(|| {
-            let elf = Elf32::parse(FIBONACCI_ELF).unwrap();
-            let program = rv_tracer::executor::Program::from(&elf);
-            let traces = rv_tracer::executor::exec(
-                &program,
-                SegmentConfig::Split {
-                    segment_len: 1 << 12,
-                },
-            );
-            let n_cycles = traces.iter().map(|t| t.length() - 1).sum::<usize>();
-            let inputs = Inputs {
-                program: program.clone(),
-                segment: Segment { segment_n: 0 },
-                n_cycles,
-            };
-            prove_segmented::<Blake3_192, QuadExtension<BaseElement>>(
-                traces,
-                black_box(PROOF_OPTIONS.clone()),
-                inputs,
-            )
-        })
-    });
+    segmented_fib_prove!(c, 1 << 15);
+    segmented_fib_prove!(c, 1 << 14);
+    segmented_fib_prove!(c, 1 << 13);
+    segmented_fib_prove!(c, 1 << 12);
+    segmented_fib_prove!(c, 1 << 11);
+    segmented_fib_prove!(c, 1 << 10);
+    segmented_fib_prove!(c, 1 << 9);
+    segmented_fib_prove!(c, 1 << 8);
+    segmented_fib_prove!(c, 1 << 7);
+    segmented_fib_prove!(c, 1 << 6);
+    segmented_fib_prove!(c, 1 << 5);
+    segmented_fib_prove!(c, 1 << 4);
+    segmented_fib_prove!(c, 1 << 3);
 
     c.bench_function("cpu fibonacci verify", |b| {
         let elf = Elf32::parse(FIBONACCI_ELF).unwrap();
@@ -171,85 +197,25 @@ pub fn fibonacci_1000(c: &mut Criterion) {
         b.iter(|| verify::<Blake3_192>(proof.clone(), inputs.clone()))
     });
 
-    c.bench_function("cpu fibonacci verify 1 segment (32K)", |b| {
-        let elf = Elf32::parse(FIBONACCI_ELF).unwrap();
-        let program = rv_tracer::executor::Program::from(&elf);
-        let traces = rv_tracer::executor::exec(
-            &program,
-            SegmentConfig::Split {
-                segment_len: 1 << 15,
-            },
-        );
-        let n_cycles = traces.iter().map(|t| t.length() - 1).sum::<usize>();
-        let inputs = Inputs {
-            program: program.clone(),
-            segment: Segment { segment_n: 0 },
-            n_cycles,
-        };
-        let (proofs, link_proofs) = prove_segmented::<Blake3_192, QuadExtension<BaseElement>>(
-            traces,
-            black_box(PROOF_OPTIONS.clone()),
-            inputs.clone(),
-        )
-        .unwrap();
-        b.iter(|| {
-            verify_segmented::<Blake3_192>(proofs.clone(), link_proofs.clone(), inputs.clone())
-        })
-    });
-
-    c.bench_function("cpu fibonacci verify 8 segments (4K)", |b| {
-        let elf = Elf32::parse(FIBONACCI_ELF).unwrap();
-        let program = rv_tracer::executor::Program::from(&elf);
-        let traces = rv_tracer::executor::exec(
-            &program,
-            SegmentConfig::Split {
-                segment_len: 1 << 11,
-            },
-        );
-        let n_cycles = traces.iter().map(|t| t.length() - 1).sum::<usize>();
-        let inputs = Inputs {
-            program: program.clone(),
-            segment: Segment { segment_n: 0 },
-            n_cycles,
-        };
-        let (proofs, link_proofs) = prove_segmented::<Blake3_192, QuadExtension<BaseElement>>(
-            traces,
-            black_box(PROOF_OPTIONS.clone()),
-            inputs.clone(),
-        )
-        .unwrap();
-        b.iter(|| {
-            verify_segmented::<Blake3_192>(proofs.clone(), link_proofs.clone(), inputs.clone())
-        })
-    });
+    segmented_fib_verify!(c, 1 << 15);
+    segmented_fib_verify!(c, 1 << 14);
+    segmented_fib_verify!(c, 1 << 13);
+    segmented_fib_verify!(c, 1 << 12);
+    segmented_fib_verify!(c, 1 << 11);
+    segmented_fib_verify!(c, 1 << 10);
+    segmented_fib_verify!(c, 1 << 9);
+    segmented_fib_verify!(c, 1 << 8);
+    segmented_fib_verify!(c, 1 << 7);
+    segmented_fib_verify!(c, 1 << 6);
+    segmented_fib_verify!(c, 1 << 5);
+    segmented_fib_verify!(c, 1 << 4);
+    segmented_fib_verify!(c, 1 << 3);
 
     c.bench_function("cpu fibonacci trace generation", |b| {
         b.iter(|| {
             rv_tracer::executor::exec(
                 &(&Elf32::parse(FIBONACCI_ELF).unwrap()).into(),
                 SegmentConfig::Single,
-            )
-        });
-    });
-
-    c.bench_function("cpu fibonacci trace generation 1 segment", |b| {
-        b.iter(|| {
-            rv_tracer::executor::exec(
-                &(&Elf32::parse(FIBONACCI_ELF).unwrap()).into(),
-                SegmentConfig::Split {
-                    segment_len: 1 << 15,
-                },
-            )
-        });
-    });
-
-    c.bench_function("cpu fibonacci trace generation 8 segments (4K)", |b| {
-        b.iter(|| {
-            rv_tracer::executor::exec(
-                &(&Elf32::parse(FIBONACCI_ELF).unwrap()).into(),
-                SegmentConfig::Split {
-                    segment_len: 1 << 11,
-                },
             )
         });
     });
