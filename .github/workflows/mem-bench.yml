@@ -66,7 +66,7 @@ jobs:
             let prove = ${{ steps.benches.outputs.prove }};
             let verify = ${{ steps.benches.outputs.verify }};
             let size = ${{ steps.benches.outputs.size }};
-            let header = "|       |" + seg_lens.join(" | ");
+            let header = "| **Fib 1000 seg len**:   |" + seg_lens.join(" | ");
             let separator = "|--|" + "--|".repeat(seg_lens.length);
             let p = "| **prove peak mem (MB)**   |";
             let v = "| **verify peak mem (KB)**  |";
@@ -82,5 +82,5 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: "**Fib 1000 segmented**:\n " + header + "\n" + separator + "\n" + p + "\n" + v + "\n" + s + "\n"
+              body: header + "\n" + separator + "\n" + p + "\n" + v + "\n" + s + "\n"
             })
