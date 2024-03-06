@@ -1,7 +1,7 @@
 import subprocess
 import matplotlib.pyplot as plt
 
-SEG_LENS = [1 << i for i in range(6, 16)]
+SEG_LENS = [1 << i for i in range(7, 16)]
 
 prove = []
 verify = []
