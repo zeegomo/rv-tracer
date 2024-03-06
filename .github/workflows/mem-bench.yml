@@ -57,14 +57,15 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: actions/setup-python@v5
       - name: Run benches
+        id: benches
         run: python tracer/benches/run_bench.py  >> $GITHUB_OUTPUT
       - uses: actions/github-script@v6
         with:
           script: |
-            let seg_lens = ${{ steps.run_exec.outputs.segments }};
-            let prove = ${{ steps.run_exec.outputs.prove }};
-            let verify = ${{ steps.run_exec.outputs.verify }};
-            let size = ${{ steps.run_exec.outputs.size }};
+            let seg_lens = ${{ steps.benches.outputs.segments }};
+            let prove = ${{ steps.benches.outputs.prove }};
+            let verify = ${{ steps.benches.outputs.verify }};
+            let size = ${{ steps.benches.outputs.size }};
             let header = "|       |" + seg_lens.join(" | ");
             let separator = "|--|" + "--|".repeat(seg_lens.length);
             let p = "| prove peak mem (MB)   |";
