@@ -1,8 +1,5 @@
 use serde::{de::DeserializeOwned, Serialize};
-use std::collections::HashMap;
-use std::io::Write;
-use std::path::PathBuf;
-use std::sync::Mutex;
+use std::{io::Write};
 use tempdir::TempDir;
 
 pub trait Cache {
@@ -31,6 +28,12 @@ impl DiskCache {
     }
 }
 
+impl Default for DiskCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Cache for DiskCache {
     fn put<T: Serialize>(&self, key: &str, item: &T) {
         let serialized = bincode::serialize(item).unwrap();
@@ -51,12 +54,4 @@ impl Cache for DiskCache {
         let item = bincode::deserialize_from(reader).unwrap();
         Some(item)
     }
-}
-
-use std::hash::{DefaultHasher, Hash, Hasher};
-
-fn calculate_hash(x: &impl Hash) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    x.hash(&mut hasher);
-    hasher.finish()
 }

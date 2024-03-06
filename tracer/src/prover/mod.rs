@@ -120,7 +120,7 @@ where
         // 0 ----- instantiate AIR and prover channel ---------------------------------------------
 
         // serialize public inputs; these will be included in the seed for the public coin
-        let pub_inputs = self.get_pub_inputs(&trace);
+        let pub_inputs = self.get_pub_inputs(trace);
 
         // create an instance of AIR for the provided parameters. this takes a generic description
         // of the computation (provided via AIR type), and creates a description of a specific
@@ -387,13 +387,26 @@ where
         Ok(proof)
     }
 
-    fn get_or_init<T: DeserializeOwned + Serialize + PartialEq + core::fmt::Debug>(
+    fn get_or_init<T: DeserializeOwned + Serialize + PartialEq>(
         &self,
         key: &str,
         mut init: impl FnMut() -> T,
     ) -> T {
         match self.cache.get(key) {
             Some(res) => {
+                #[cfg(debug_assertions)]
+                {
+                    let expected = init();
+                    if res != expected {
+                        panic!(
+                            "Cache hit for key {} but the value is different from the expected one",
+                            key
+                        );
+                    }
+                }
+                {
+
+                }
                 res
             }
             None => {
