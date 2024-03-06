@@ -68,12 +68,12 @@ jobs:
             let size = ${{ steps.benches.outputs.size }};
             let header = "|       |" + seg_lens.join(" | ");
             let separator = "|--|" + "--|".repeat(seg_lens.length);
-            let p = "| prove peak mem (MB)   |";
-            let v = "| verify peak mem (KB)  |";
-            let s = "| proof total size (KB) |";
+            let p = "| **prove peak mem (MB)**   |";
+            let v = "| **verify peak mem (KB)**  |";
+            let s = "| **proof total size (KB)** |";
 
             for (let i = 0; i < seg_lens.length; i++) {
-                p += `   ${prove[i].toFixed(2)} |`;
+                p += `   ${(prove[i] / 1024).toFixed(2)} |`;
                 v += `   ${verify[i].toFixed(2)} |`;
                 s += `   ${size[i].toFixed(2)} |`;
             }
