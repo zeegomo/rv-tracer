@@ -60,7 +60,7 @@ jobs:
         run: python tracer/benches/run_bench.py  >> $GITHUB_OUTPUT
       - uses: actions/github-script@v6
         with:
-          script:
+          script: |
             let seg_lens = ${{ steps.run_exec.outputs.segments }};
             let prove = ${{ steps.run_exec.outputs.prove }};
             let verify = ${{ steps.run_exec.outputs.verify }};
