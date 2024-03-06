@@ -36,63 +36,50 @@ jobs:
         with:
           name: fib-verify
           path: tracer/dhat-heap.json
+      - uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: "**Fib 1000 peak memory usage**:\n * exec: " + ${{ steps.run_exec.outputs.out }}[3] / 1024 + " kB\n * prove: " + ${{ steps.run_prove.outputs.out }}[3] / 1024 + " kB\n * verify: " + ${{ steps.run_verify.outputs.out }}[3] / 1024 + " kB"
+            })
 
   bench_segmented_mem:
     name: Benchmark fibonacci 1000 segmented
     runs-on: [alpha]
-    outputs: 
-      peak_2048_prove: ${{ steps.prove.peak_2048 }}
-      peak_2048_verify: ${{ steps.verify.peak_2048 }}
-      out: "out"
-    strategy:
-      matrix:
-        segment_len: [2048]
     steps:
       - uses: actions/checkout@v3
         with:
           submodules: true
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Run bench prove segmented
-        id: prove
-        run: cargo bench --bench fib_prove_segmented -- --segment-len ${{ matrix.segment_len }}  >> $GITHUB_OUTPUT
-      - uses: actions/upload-artifact@v4
+      - uses: actions/setup-python@v5
+      - name: Run benches
+        run: python tracer/benches/run_bench.py  >> $GITHUB_OUTPUT
+      - uses: actions/github-script@v6
         with:
-          name: fib-prove-segmented-${{ matrix.segment_len }}
-          path: tracer/dhat-heap.json
-      - name: Run bench verify segmented
-        id: verify
-        run: cargo bench --bench fib_verify_segmented -- --segment-len ${{ matrix.segment_len }} >> $GITHUB_OUTPUT
-      - uses: actions/upload-artifact@v4
-        with:
-          name: fib-verify-segmented-${{ matrix.segment_len }}
-          path: tracer/dhat-heap.json
+          script:
+            let seg_lens = ${{ steps.run_exec.outputs.segments }};
+            let prove = ${{ steps.run_exec.outputs.prove }};
+            let verify = ${{ steps.run_exec.outputs.verify }};
+            let size = ${{ steps.run_exec.outputs.size }};
+            let header = "|       |" + seg_lens.join(" | ");
+            let separator = "|--|" + "--|".repeat(seg_lens.length);
+            let p = "| prove peak mem (MB)   |";
+            let v = "| verify peak mem (KB)  |";
+            let s = "| proof total size (KB) |";
 
-  write_report:
-    runs-on: [alpha]
-    name: Write report
-    needs: [bench_segmented_mem, bench-reference-mem]
-    steps:
-      - uses: actions/github-script@v6
-        with:
-          script: |
-            let prove = JSON.stringify(${{ needs.bench_segmented_mem.outputs }});
-            let verify = JSON.stringify(${{ needs.bench_segmented_mem.outputs }});
-            let prov = ${{ needs.bench_segmented_mem.outputs.out }}
+            for (let i = 0; i < seg_lens.length; i++) {
+                p += `   ${prove[i].toFixed(2)} |`;
+                v += `   ${verify[i].toFixed(2)} |`;
+                s += `   ${size[i].toFixed(2)} |`;
+            }
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: "**Fib 1000 peak memory usage segmented (4K)**:\n * prove: " + prove + " kB\n * verify: " + verify + " kB"
-            })
-      - uses: actions/github-script@v6
-        with:
-          script: |
-            let prove =  ${{ needs.bench-reference-mem.outputs.prove }}[3] / 1024;
-            let verify = ${{ needs.bench-reference-mem.outputs.verify }}[3] / 1024;
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: "**Fib 1000 peak memory usage**:\n * exec:  kB\n * prove: " + prove + " kB\n * verify: " + verify + " kB"
+              body: "**Fib 1000 segmented**:\n " + header + "\n" + separator + "\n" + p + "\n" + v + "\n" + s + "\n"
             })
