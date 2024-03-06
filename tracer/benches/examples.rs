@@ -3,8 +3,7 @@ use miden_processor::QuadExtension;
 use once_cell::sync::Lazy;
 use rv_tracer::{
     air::{Inputs, Segment, SegmentConfig},
-    prove, prove_segmented,
-    verify, verify_segmented,
+    prove, prove_segmented, verify, verify_segmented, prover::cache::DiskCache,
 };
 use rvsim::elf::Elf32;
 use winterfell::{math::fields::f64::BaseElement, FieldExtension, ProofOptions, Trace};
@@ -101,10 +100,11 @@ macro_rules! segmented_fib_prove {
                     segment: Segment { segment_n: 0 },
                     n_cycles,
                 };
-                prove_segmented::<Blake3_192, QuadExtension<BaseElement>>(
+                prove_segmented::<Blake3_192, QuadExtension<BaseElement>, _>(
                     traces,
                     black_box(PROOF_OPTIONS.clone()),
                     inputs,
+                    DiskCache::new(),
                 )
             })
         });
@@ -129,10 +129,11 @@ macro_rules! segmented_fib_verify {
                 n_cycles,
             };
             let (proofs, link_proofs) =
-                prove_segmented::<Blake3_192, QuadExtension<BaseElement>>(
+                prove_segmented::<Blake3_192, QuadExtension<BaseElement>, _>(
                     traces,
                     black_box(PROOF_OPTIONS.clone()),
                     inputs.clone(),
+                    DiskCache::new(),
                 )
                 .unwrap();
             b.iter(|| {

@@ -5,6 +5,7 @@ use once_cell::sync::Lazy;
 use rv_tracer::{
     air::{Inputs, Segment, SegmentConfig},
     executor::{exec, Program},
+    prover::cache::DiskCache,
     prove_segmented,
 };
 use rvsim::elf::Elf32;
@@ -50,10 +51,11 @@ fn run_bench(segment_len: u32) -> HeapStats {
         segment: Segment { segment_n: 0 },
         n_cycles,
     };
-    prove_segmented::<Blake3_192, QuadExtension<BaseElement>>(
+    prove_segmented::<Blake3_192, QuadExtension<BaseElement>, _>(
         traces,
         PROOF_OPTIONS.clone(),
         inputs,
+        DiskCache::new(),
     )
     .unwrap();
 

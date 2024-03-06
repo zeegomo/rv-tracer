@@ -6,6 +6,7 @@ use rv_tracer::{
     air::{Inputs, Segment, SegmentConfig},
     executor::{exec, Program},
     prove_segmented, verify_segmented,
+    prover::cache::DiskCache,
 };
 use rvsim::elf::Elf32;
 use winterfell::{math::fields::f64::BaseElement, FieldExtension, ProofOptions, Trace};

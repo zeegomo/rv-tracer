@@ -21,14 +21,12 @@ impl Cache for NoCache {
 
 pub struct DiskCache {
     dir: TempDir,
-    cache: Mutex<HashMap<PathBuf, Vec<u8>>>,
 }
 
 impl DiskCache {
     pub fn new() -> Self {
         DiskCache {
             dir: TempDir::new("prove_cache").unwrap(),
-            cache: Default::default(),
         }
     }
 }
@@ -37,41 +35,24 @@ impl Cache for DiskCache {
     fn put<T: Serialize>(&self, key: &str, item: &T) {
         let serialized = bincode::serialize(item).unwrap();
         let path = self.dir.path().join(key);
-        println!(
-            "saving {} bytes to {}",
-            calculate_hash(&serialized),
-            path.display()
-        );
-        // let mut file = std::fs::File::create(path).unwrap();
-        // file.write_all(&serialized).unwrap();
-        self.cache.lock().unwrap().insert(path, serialized);
+        let mut file = std::fs::File::create(path).unwrap();
+        file.write_all(&serialized).unwrap();
     }
 
     fn get<T: DeserializeOwned>(&self, key: &str) -> Option<T> {
         let path = self.dir.path().join(key);
 
-        if !self.cache.lock().unwrap().get(&path).is_some() {
+        if !path.exists() {
             return None;
         }
 
-        println!(
-            "loaded {} from  {}",
-            calculate_hash(self.cache.lock().unwrap().get(&path).unwrap()),
-            path.display()
-        );
-
-        // let file = std::fs::File::open(path).unwrap();
-        // let reader = std::io::BufReader::new(file);
-        let item = bincode::deserialize(self.cache.lock().unwrap().get(&path).unwrap()).unwrap();
+        let file = std::fs::File::open(path).unwrap();
+        let reader = std::io::BufReader::new(file);
+        let item = bincode::deserialize_from(reader).unwrap();
         Some(item)
     }
 }
 
-impl Drop for DiskCache {
-    fn drop(&mut self) {
-        println!("DROPPPING");
-    }
-}
 use std::hash::{DefaultHasher, Hash, Hasher};
 
 fn calculate_hash(x: &impl Hash) -> u64 {

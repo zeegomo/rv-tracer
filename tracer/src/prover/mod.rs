@@ -86,7 +86,6 @@ where
 
         proofs.push(self.generate_proof_with_cache(&mut traces[0], 0, &main_traces_commitments)?);
         for i in 1..traces.len() {
-            println!("PROVING ONE");
             // generate proof
             self.inputs.segment.segment_n += 1;
             proofs.push(self.generate_proof_with_cache(
@@ -180,6 +179,10 @@ where
 
         // draw a set of random elements required to build an auxiliary trace segment
         let rand_elements = channel.get_aux_trace_segment_rand_elements(0);
+
+        if !self.rand_elems.is_empty() {
+           assert_eq!(self.rand_elems, rand_elements);
+        }
         self.rand_elems = rand_elements.clone();
 
         // build the trace segment
@@ -391,12 +394,6 @@ where
     ) -> T {
         match self.cache.get(key) {
             Some(res) => {
-                let reference = init();
-                assert_eq!(
-                    res, reference,
-                    "cached value for {} does not match computed value",
-                    key
-                );
                 res
             }
             None => {
@@ -453,14 +450,6 @@ where
         MerkleTree<H>,
         ColMatrix<E::BaseField>,
     ) {
-        t.build_segment();
-        println!(
-            "main_commitments-{}-{} | {} ",
-            calculate_hash(&self.inputs.program),
-            trace_n,
-            t.get(0, 0),
-        );
-        t.drop_segment();
         let (lde, tree, polys) = self.get_or_init(
             &format!(
                 "main_commitments-{}-{}",
@@ -496,7 +485,6 @@ where
         trace_n: usize,
         domain: &StarkDomain<BaseElement>,
     ) -> (RowMatrix<E>, MerkleTree<H>, ColMatrix<E>) {
-        println!("aux: {}", t);
         let (lde, tree, polys) = self.get_or_init(
             &format!(
                 "aux_commitments-{}-{}",
@@ -686,12 +674,6 @@ where
         drop(t2_polys);
 
         let b_states = b_polys.evaluate_at(z);
-        println!(
-            "{} {} {}",
-            trace_states_1.len(),
-            trace_states_2.len(),
-            b_states.len()
-        );
         channel.send_ood_trace_states(&[
             trace_states_1.clone(),
             trace_states_2.clone(),

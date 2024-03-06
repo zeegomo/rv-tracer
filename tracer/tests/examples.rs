@@ -16,7 +16,7 @@ use common::{Blake3_192, PROOF_OPTIONS};
 const LOOP_ELF: &[u8] = include_bytes!("../../examples/loop/loop.bin");
 const FIBONACCI_ELF: &[u8] = include_bytes!("../../examples/fibonacci/fibonacci.bin");
 
-const SEGMENT_LEN: u32 = 1 << 4;
+const SEGMENT_LEN: u32 = 1 << 12;
 const NUM_QUERIES: usize = 10;
 const BLOWUP_FACTOR: usize = 16;
 const GRINDING_FACTOR: u32 = 5;
