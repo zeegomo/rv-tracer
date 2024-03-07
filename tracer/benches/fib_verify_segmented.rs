@@ -50,10 +50,11 @@ fn run_bench(segment_len: u32) -> HeapStats {
         segment: Segment { segment_n: 0 },
         n_cycles,
     };
-    let (proofs, link_proofs) = prove_segmented::<Blake3_192, QuadExtension<BaseElement>>(
+    let (proofs, link_proofs) = prove_segmented::<Blake3_192, QuadExtension<BaseElement>, _>(
         traces,
         PROOF_OPTIONS.clone(),
         inputs.clone(),
+        DiskCache::new(),
     )
     .unwrap();
 
