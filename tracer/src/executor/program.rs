@@ -1,7 +1,7 @@
 use rvsim::elf::{self, Elf32};
 use winterfell::math::{FieldElement, ToElements};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Hash)]
 pub struct Program {
     entry: u32,
     segments: Vec<(u32, Vec<u8>)>,

@@ -4,9 +4,12 @@ use common::perturb::*;
 use common::*;
 use quickcheck::Arbitrary;
 use quickcheck::TestResult;
+use rv_tracer::prover::cache::NoCache;
 use rv_tracer::{
     air::{Inputs, Segment},
-    prove, prove_segmented, verify, verify_segmented,
+    prove, prove_segmented,
+    prover::cache::DiskCache,
+    verify, verify_segmented,
 };
 use std::any::TypeId;
 use trace_defs::MAIN_TRACE_WIDTH;
@@ -177,7 +180,7 @@ quickcheck::quickcheck! {
             n_cycles,
         };
 
-        let  (proofs, link_proofs) = prove_segmented::<Blake3_192, BaseElement>(traces, PROOF_OPTIONS.clone(), inputs.clone()).unwrap();
+        let  (proofs, link_proofs) = prove_segmented::<Blake3_192, BaseElement, _>(traces, PROOF_OPTIONS.clone(), inputs.clone(), NoCache).unwrap();
         verify_segmented::<Blake3_192>(proofs, link_proofs, inputs).unwrap();
         true
     }

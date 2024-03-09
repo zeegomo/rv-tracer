@@ -3,6 +3,7 @@ use miden_processor::QuadExtension;
 use rv_tracer::{
     air::{Inputs, Segment},
     executor::Program,
+    prover::cache::DiskCache,
     *,
 };
 use rvsim::elf::Elf32;
@@ -47,6 +48,7 @@ fn main() {
                 FRI_REMAINDER_MAX_DEGREE,
             ),
             air::SegmentConfig::Single,
+            DiskCache::new(),
         )
         .unwrap();
 

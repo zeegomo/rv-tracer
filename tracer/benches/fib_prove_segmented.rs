@@ -6,6 +6,7 @@ use rv_tracer::{
     air::{Inputs, Segment, SegmentConfig},
     executor::{exec, Program},
     prove_segmented,
+    prover::cache::{DiskCache, NoCache},
 };
 use rvsim::elf::Elf32;
 use winterfell::{math::fields::f64::BaseElement, FieldExtension, ProofOptions, Trace};
@@ -50,10 +51,11 @@ fn run_bench(segment_len: u32) -> HeapStats {
         segment: Segment { segment_n: 0 },
         n_cycles,
     };
-    prove_segmented::<Blake3_192, QuadExtension<BaseElement>>(
+    prove_segmented::<Blake3_192, QuadExtension<BaseElement>, _>(
         traces,
         PROOF_OPTIONS.clone(),
         inputs,
+        DiskCache::new(),
     )
     .unwrap();
 

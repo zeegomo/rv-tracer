@@ -6,12 +6,17 @@ mod verifier;
 use executor::Program;
 use miden_air::FieldElement;
 use rvsim::elf::Elf32;
+use serde::{de::DeserializeOwned, Serialize};
 use std::time::Instant;
 use winterfell::ProverError;
 
 pub type Felem = winterfell::math::fields::f64::BaseElement;
 
 use air::{Inputs, Segment, SegmentConfig};
+use prover::{
+    cache::{Cache, DiskCache},
+    RiscvProver,
+};
 use trace::TraceTable;
 use winterfell::{
     crypto::{DefaultRandomCoin, ElementHasher},
@@ -28,23 +33,27 @@ where
     H: ElementHasher<BaseField = BaseElement>,
     E: FieldElement<BaseField = BaseElement>,
 {
-    let prover = prover::RiscvProver::<H, E>::new(options, inputs);
+    let prover = RiscvProver::<H, E, _>::new(options, inputs, DiskCache::new());
     let now = Instant::now();
     let proof = prover.prove(trace)?;
     log::debug!("Generated proof in {} ms", now.elapsed().as_millis());
     Ok(proof)
 }
 
-pub fn prove_segmented<H, E>(
+pub fn prove_segmented<H, E, C>(
     traces: Vec<TraceTable<BaseElement>>,
     options: ProofOptions,
     inputs: Inputs,
+    cache: C,
 ) -> Result<(Vec<StarkProof>, Vec<StarkProof>), ProverError>
 where
     H: ElementHasher<BaseField = BaseElement>,
     E: FieldElement<BaseField = BaseElement>,
+    E: Serialize + DeserializeOwned,
+    H::Digest: Serialize + DeserializeOwned,
+    C: Cache,
 {
-    let mut prover = prover::RiscvProver::<H, E>::new(options, inputs);
+    let mut prover = RiscvProver::<H, E, _>::new(options, inputs, cache);
     let now = Instant::now();
     let proof = prover.prove_segmented(traces)?;
     log::debug!("Generated link proof in {} ms", now.elapsed().as_millis());
@@ -55,10 +64,13 @@ pub fn prove_from_elf<H, E>(
     elf: Elf32,
     options: ProofOptions,
     segment_config: SegmentConfig,
+    cache: impl Cache,
 ) -> Result<(Vec<StarkProof>, Vec<StarkProof>, usize), ProverError>
 where
     H: ElementHasher<BaseField = BaseElement>,
     E: FieldElement<BaseField = BaseElement>,
+    E: Serialize + DeserializeOwned,
+    H::Digest: Serialize + DeserializeOwned,
 {
     log::debug!(
         "Generating proof for riscv program\n\
@@ -88,7 +100,7 @@ where
             Ok((vec![proof], Vec::new(), n_cycles))
         }
         SegmentConfig::Split { .. } => {
-            let (proofs, link_proofs) = prove_segmented::<H, E>(traces, options, inputs)?;
+            let (proofs, link_proofs) = prove_segmented::<H, E, _>(traces, options, inputs, cache)?;
 
             Ok((proofs, link_proofs, n_cycles))
         }
