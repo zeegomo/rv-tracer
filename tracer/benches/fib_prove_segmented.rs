@@ -5,8 +5,8 @@ use once_cell::sync::Lazy;
 use rv_tracer::{
     air::{Inputs, Segment, SegmentConfig},
     executor::{exec, Program},
-    prover::cache::DiskCache,
     prove_segmented,
+    prover::cache::{DiskCache, NoCache},
 };
 use rvsim::elf::Elf32;
 use winterfell::{math::fields::f64::BaseElement, FieldExtension, ProofOptions, Trace};

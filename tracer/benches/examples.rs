@@ -3,7 +3,9 @@ use miden_processor::QuadExtension;
 use once_cell::sync::Lazy;
 use rv_tracer::{
     air::{Inputs, Segment, SegmentConfig},
-    prove, prove_segmented, verify, verify_segmented, prover::cache::DiskCache,
+    prove, prove_segmented,
+    prover::cache::DiskCache,
+    verify, verify_segmented,
 };
 use rvsim::elf::Elf32;
 use winterfell::{math::fields::f64::BaseElement, FieldExtension, ProofOptions, Trace};
@@ -173,10 +175,6 @@ pub fn fibonacci_1000(c: &mut Criterion) {
     segmented_fib_prove!(c, 1 << 9);
     segmented_fib_prove!(c, 1 << 8);
     segmented_fib_prove!(c, 1 << 7);
-    segmented_fib_prove!(c, 1 << 6);
-    segmented_fib_prove!(c, 1 << 5);
-    segmented_fib_prove!(c, 1 << 4);
-    segmented_fib_prove!(c, 1 << 3);
 
     c.bench_function("cpu fibonacci verify", |b| {
         let elf = Elf32::parse(FIBONACCI_ELF).unwrap();
@@ -207,10 +205,6 @@ pub fn fibonacci_1000(c: &mut Criterion) {
     segmented_fib_verify!(c, 1 << 9);
     segmented_fib_verify!(c, 1 << 8);
     segmented_fib_verify!(c, 1 << 7);
-    segmented_fib_verify!(c, 1 << 6);
-    segmented_fib_verify!(c, 1 << 5);
-    segmented_fib_verify!(c, 1 << 4);
-    segmented_fib_verify!(c, 1 << 3);
 
     c.bench_function("cpu fibonacci trace generation", |b| {
         b.iter(|| {

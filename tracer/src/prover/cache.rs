@@ -1,5 +1,5 @@
 use serde::{de::DeserializeOwned, Serialize};
-use std::{io::Write};
+use std::io::Write;
 use tempdir::TempDir;
 
 pub trait Cache {
@@ -36,10 +36,9 @@ impl Default for DiskCache {
 
 impl Cache for DiskCache {
     fn put<T: Serialize>(&self, key: &str, item: &T) {
-        let serialized = bincode::serialize(item).unwrap();
         let path = self.dir.path().join(key);
         let mut file = std::fs::File::create(path).unwrap();
-        file.write_all(&serialized).unwrap();
+        bincode::serialize_into(&mut file, item).unwrap();
     }
 
     fn get<T: DeserializeOwned>(&self, key: &str) -> Option<T> {
