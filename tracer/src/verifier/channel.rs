@@ -3,8 +3,11 @@
 //
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
-use crate::air::RiscvAir;
-use winter_air::proof::{StarkProof, Table};
+use crate::air::{
+    proof::{Commitments, StarkProof},
+    RiscvAir,
+};
+use winter_air::proof::Table;
 use winter_crypto::{BatchMerkleProof, ElementHasher, MerkleTree};
 use winter_fri::VerifierChannel as FriVerifierChannel;
 use winter_math::{FieldElement, StarkField};
@@ -22,10 +25,10 @@ use winter_verifier::{Air, ConstraintQueries, TraceOodFrame, TraceQueries, Verif
 pub struct VerifierChannel<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>> {
     // trace queries
     trace_roots: Vec<H::Digest>,
-    trace_queries: Option<TraceQueries<E, H>>,
+    trace_queries: Option<Vec<TraceQueries<E, H>>>,
     // constraint queries
-    constraint_root: H::Digest,
-    constraint_queries: Option<ConstraintQueries<E, H>>,
+    constraint_roots: Vec<H::Digest>,
+    constraint_queries: Option<Vec<ConstraintQueries<E, H>>>,
     // FRI proof
     fri_roots: Option<Vec<H::Digest>>,
     fri_layer_proofs: Vec<BatchMerkleProof<H>>,
@@ -33,11 +36,10 @@ pub struct VerifierChannel<E: FieldElement, H: ElementHasher<BaseField = E::Base
     fri_remainder: Option<Vec<E>>,
     fri_num_partitions: usize,
     // out-of-domain frame
-    ood_trace_frame: Option<TraceOodFrame<E>>,
-    ood_constraint_evaluations: Option<Vec<E>>,
+    ood_trace_frames: Option<Vec<TraceOodFrame<E>>>,
+    ood_constraint_evaluations: Option<Vec<Vec<E>>>,
     // query proof-of-work
     pow_nonce: u64,
-    main_trace_commitments: Vec<H::Digest>,
 }
 
 impl<
@@ -69,52 +71,72 @@ impl<
             return Err(VerifierError::InconsistentBaseField);
         }
         let constraint_frame_width = air.context().num_constraint_composition_columns();
-
-        let mut num_trace_segments = air.trace_layout().num_segments();
+        let mut num_trace_segments = n_segments;
         let main_trace_width = air.trace_layout().main_trace_width();
         let aux_trace_width = air.trace_layout().aux_trace_width();
         let lde_domain_size = air.lde_domain_size();
         let fri_options = air.options().to_fri_options();
 
-        num_trace_segments += n_segments - 1;
-
         // --- parse commitments ------------------------------------------------------------------
-        let (trace_roots, constraint_root, fri_roots) = commitments
+        let (trace_roots, constraint_roots, fri_roots) = commitments
             .parse::<H>(
                 num_trace_segments,
                 fri_options.num_fri_layers(lde_domain_size),
             )
-            .map_err(|err| VerifierError::ProofDeserializationError(err.to_string()))?;
-        let mut main_trace_commitments = trace_roots;
-        let mut trace_roots = main_trace_commitments.split_off(n_segments);
-        trace_roots.insert(0, main_trace_commitments[segment_n]);
+            .map_err(|err| VerifierError::ProofDeserializationError(err.to_string()))
+            .unwrap();
 
         // --- parse trace and constraint queries -------------------------------------------------
-        let trace_queries = TraceQueries::new(trace_queries, air)?;
-        let constraint_queries = ConstraintQueries::new(constraint_queries, air)?;
+
+        let trace_queries = trace_queries
+            .into_iter()
+            .map(|q| <TraceQueries<E, H>>::new(q, air).unwrap())
+            .collect::<Vec<_>>();
+        let constraint_queries = constraint_queries
+            .into_iter()
+            .map(|q| ConstraintQueries::new(q, air).unwrap())
+            .collect();
 
         // --- parse FRI proofs -------------------------------------------------------------------
         let fri_num_partitions = fri_proof.num_partitions();
         let fri_remainder = fri_proof
             .parse_remainder()
-            .map_err(|err| VerifierError::ProofDeserializationError(err.to_string()))?;
+            .map_err(|err| VerifierError::ProofDeserializationError(err.to_string()))
+            .unwrap();
         let (fri_layer_queries, fri_layer_proofs) = fri_proof
             .parse_layers::<H, E>(lde_domain_size, fri_options.folding_factor())
-            .map_err(|err| VerifierError::ProofDeserializationError(err.to_string()))?;
+            .map_err(|err| VerifierError::ProofDeserializationError(err.to_string()))
+            .unwrap();
 
         // --- parse out-of-domain evaluation frame -----------------------------------------------
-        let (ood_trace_evaluations, ood_constraint_evaluations) = ood_frame
-            .parse(main_trace_width, aux_trace_width, constraint_frame_width)
-            .map_err(|err| VerifierError::ProofDeserializationError(err.to_string()))?;
-        let ood_trace_frame =
-            TraceOodFrame::new(ood_trace_evaluations, main_trace_width, aux_trace_width);
+        let res = ood_frame
+            .parse(
+                main_trace_width,
+                aux_trace_width,
+                constraint_frame_width,
+                n_segments,
+            )
+            .map_err(|err| VerifierError::ProofDeserializationError(err.to_string()))
+            .unwrap();
+
+        let mut ood_trace_frames = Vec::new();
+        let mut ood_constraint_evaluations = Vec::new();
+
+        for (trace_frame, constraint_evaluations) in res {
+            ood_trace_frames.push(TraceOodFrame::new(
+                trace_frame,
+                main_trace_width,
+                aux_trace_width,
+            ));
+            ood_constraint_evaluations.push(constraint_evaluations);
+        }
 
         Ok(VerifierChannel {
             // trace queries
             trace_roots,
             trace_queries: Some(trace_queries),
             // constraint queries
-            constraint_root,
+            constraint_roots,
             constraint_queries: Some(constraint_queries),
             // FRI proof
             fri_roots: Some(fri_roots),
@@ -123,11 +145,10 @@ impl<
             fri_remainder: Some(fri_remainder),
             fri_num_partitions,
             // out-of-domain evaluation
-            ood_trace_frame: Some(ood_trace_frame),
+            ood_trace_frames: Some(ood_trace_frames),
             ood_constraint_evaluations: Some(ood_constraint_evaluations),
             // query seed
             pow_nonce,
-            main_trace_commitments,
         })
     }
 
@@ -142,13 +163,9 @@ impl<
         &self.trace_roots
     }
 
-    pub fn main_trace_commitments(&self) -> &[H::Digest] {
-        &self.main_trace_commitments
-    }
-
     /// Returns constraint evaluation commitment sent by the prover.
-    pub fn read_constraint_commitment(&self) -> H::Digest {
-        self.constraint_root
+    pub fn read_constraint_commitments(&self) -> &[H::Digest] {
+        &self.constraint_roots
     }
 
     /// Returns trace polynomial evaluations at out-of-domain points z and z * g, where g is the
@@ -156,13 +173,13 @@ impl<
     ///
     /// For computations requiring multiple trace segments, evaluations of auxiliary trace
     /// polynomials are also included.
-    pub fn read_ood_trace_frame(&mut self) -> TraceOodFrame<E> {
-        self.ood_trace_frame.take().expect("already read")
+    pub fn read_ood_trace_frames(&mut self) -> Vec<TraceOodFrame<E>> {
+        self.ood_trace_frames.take().expect("already read")
     }
 
     /// Returns evaluations of composition polynomial columns at z^m, where z is the out-of-domain
     /// point, and m is the number of composition polynomial columns.
-    pub fn read_ood_constraint_evaluations(&mut self) -> Vec<E> {
+    pub fn read_ood_constraint_evaluations(&mut self) -> Vec<Vec<E>> {
         self.ood_constraint_evaluations
             .take()
             .expect("already read")
@@ -183,16 +200,27 @@ impl<
     pub fn read_queried_trace_states(
         &mut self,
         positions: &[usize],
-    ) -> Result<(Table<E::BaseField>, Option<Table<E>>), VerifierError> {
+    ) -> Result<Vec<(Table<E::BaseField>, Option<Table<E>>)>, VerifierError> {
         let queries = self.trace_queries.take().expect("already read");
-
-        // make sure the states included in the proof correspond to the trace commitment
-        for (root, proof) in self.trace_roots.iter().zip(queries.query_proofs().iter()) {
-            MerkleTree::verify_batch(root, positions, proof)
-                .map_err(|_| VerifierError::TraceQueryDoesNotMatchCommitment)?;
+        let mut trace_roots = Vec::new();
+        let n_main_roots = self.trace_roots.len() / 2;
+        for i in 0..n_main_roots {
+            trace_roots.push(self.trace_roots[i]);
+            trace_roots.push(self.trace_roots[i + n_main_roots]);
         }
 
-        Ok(queries.states())
+        let mut res = Vec::new();
+        for (queries, roots) in queries.into_iter().zip(trace_roots.chunks(2)) {
+            // make sure the states included in the proof correspond to the trace commitment
+            for (root, proof) in roots.iter().zip(queries.query_proofs().iter()) {
+                MerkleTree::verify_batch(root, positions, proof)
+                    .map_err(|_| VerifierError::TraceQueryDoesNotMatchCommitment)
+                    .unwrap();
+            }
+            res.push(queries.states());
+        }
+
+        Ok(res)
     }
 
     /// Returns constraint evaluations at the specified positions of the LDE domain. This also
@@ -201,13 +229,18 @@ impl<
     pub fn read_constraint_evaluations(
         &mut self,
         positions: &[usize],
-    ) -> Result<Table<E>, VerifierError> {
+    ) -> Result<Vec<Table<E>>, VerifierError> {
         let queries = self.constraint_queries.take().expect("already read");
 
-        MerkleTree::verify_batch(&self.constraint_root, positions, queries.query_proofs())
-            .map_err(|_| VerifierError::ConstraintQueryDoesNotMatchCommitment)?;
+        let mut res = Vec::new();
 
-        Ok(queries.evaluations())
+        for (i, queries) in queries.into_iter().enumerate() {
+            MerkleTree::verify_batch(&self.constraint_roots[i], positions, queries.query_proofs())
+                .map_err(|_| VerifierError::ConstraintQueryDoesNotMatchCommitment)?;
+            res.push(queries.evaluations());
+        }
+
+        Ok(res)
     }
 }
 
@@ -298,6 +331,7 @@ impl<E: FieldElement, H: ElementHasher<BaseField = E::BaseField>> LinkVerifierCh
             .map_err(|err| VerifierError::ProofDeserializationError(err.to_string()))?;
 
         // --- parse trace and constraint queries -------------------------------------------------
+        let mut trace_queries = trace_queries.pop().unwrap();
         let queries_length = trace_queries.len() / 3;
         let mut trace_2_queries = trace_queries.split_off(queries_length);
         let b_queries = trace_2_queries.split_off(queries_length);

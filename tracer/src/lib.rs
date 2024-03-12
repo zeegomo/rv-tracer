@@ -11,12 +11,12 @@ use winterfell::ProverError;
 
 pub type Felem = winterfell::math::fields::f64::BaseElement;
 
-use air::{Inputs, Segment, SegmentConfig};
+use air::{proof::StarkProof, Inputs, Segment, SegmentConfig};
 use trace::TraceTable;
 use winterfell::{
     crypto::{DefaultRandomCoin, ElementHasher},
     math::fields::f64::BaseElement,
-    ProofOptions, Prover, StarkProof, Trace, VerifierError,
+    ProofOptions, Prover, Trace, VerifierError,
 };
 
 pub fn prove<H, E>(
@@ -28,18 +28,14 @@ where
     H: ElementHasher<BaseField = BaseElement>,
     E: FieldElement<BaseField = BaseElement>,
 {
-    let prover = prover::RiscvProver::<H, E>::new(options, inputs);
-    let now = Instant::now();
-    let proof = prover.prove(trace)?;
-    log::debug!("Generated proof in {} ms", now.elapsed().as_millis());
-    Ok(proof)
+    Ok(prove_segmented::<H, E>(vec![trace], options, inputs)?.0)
 }
 
 pub fn prove_segmented<H, E>(
     traces: Vec<TraceTable<BaseElement>>,
     options: ProofOptions,
     inputs: Inputs,
-) -> Result<(Vec<StarkProof>, Vec<StarkProof>), ProverError>
+) -> Result<(StarkProof, Vec<StarkProof>), ProverError>
 where
     H: ElementHasher<BaseField = BaseElement>,
     E: FieldElement<BaseField = BaseElement>,
@@ -55,7 +51,7 @@ pub fn prove_from_elf<H, E>(
     elf: Elf32,
     options: ProofOptions,
     segment_config: SegmentConfig,
-) -> Result<(Vec<StarkProof>, Vec<StarkProof>, usize), ProverError>
+) -> Result<(StarkProof, Vec<StarkProof>, usize), ProverError>
 where
     H: ElementHasher<BaseField = BaseElement>,
     E: FieldElement<BaseField = BaseElement>,
@@ -85,7 +81,7 @@ where
     match segment_config {
         SegmentConfig::Single => {
             let proof = prove::<H, E>(traces.remove(0), options.clone(), inputs)?;
-            Ok((vec![proof], Vec::new(), n_cycles))
+            Ok((proof, Vec::new(), n_cycles))
         }
         SegmentConfig::Split { .. } => {
             let (proofs, link_proofs) = prove_segmented::<H, E>(traces, options, inputs)?;
@@ -99,19 +95,16 @@ pub fn verify<H: ElementHasher<BaseField = BaseElement>>(
     proof: StarkProof,
     inputs: Inputs,
 ) -> Result<(), VerifierError> {
-    let now = Instant::now();
-    winterfell::verify::<air::RiscvAir, H, DefaultRandomCoin<H>>(proof, inputs)?;
-    log::debug!("Verified proof in {} ms", now.elapsed().as_millis());
-    Ok(())
+    verify_segmented::<H>(proof, vec![], inputs)
 }
 
 pub fn verify_segmented<H: ElementHasher<BaseField = BaseElement>>(
-    proofs: Vec<StarkProof>,
+    proof: StarkProof,
     link_proofs: Vec<StarkProof>,
     inputs: Inputs,
 ) -> Result<(), VerifierError> {
     let now = Instant::now();
-    verifier::verify_segmented::<H, DefaultRandomCoin<H>>(proofs, link_proofs, inputs)?;
+    verifier::verify_segmented::<H, DefaultRandomCoin<H>>(proof, link_proofs, inputs)?;
     log::debug!("Verified proof(s) in {} ms", now.elapsed().as_millis());
     Ok(())
 }

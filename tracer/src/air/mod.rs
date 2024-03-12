@@ -1,5 +1,6 @@
 mod cpu;
 mod memory;
+pub mod proof;
 mod segment;
 
 use miden_air::constraints::range;

@@ -122,6 +122,9 @@ impl Trace for TraceTable<BaseElement> {
     fn main_segment(&self) -> &ColMatrix<Self::BaseField> {
         // TODO: single segment proofs should not pay the cost of cloning the segment
         self.assert_segment_built();
+        if self.segment_len == self.inner.length() {
+            return self.inner.main_segment();
+        }
         &self.seg
     }
 
@@ -253,6 +256,12 @@ impl TraceTable<BaseElement> {
 
     pub fn update_row(&mut self, step: usize, state: &[BaseElement]) {
         self.assert_segment_built();
+        if self.segment_len == self.seg.num_rows() {
+            Rc::get_mut(&mut self.inner)
+                .unwrap()
+                .update_row(step, state);
+            return;
+        }
         self.seg.update_row(step, state);
     }
 

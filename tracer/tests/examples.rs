@@ -36,14 +36,14 @@ pub static QUAD_PROOF_OPTIONS: Lazy<ProofOptions> = Lazy::new(|| {
 fn prove_and_verify_loop() {
     let elf = rvsim::elf::Elf32::parse(LOOP_ELF).unwrap();
     let program = Program::from(&elf);
-    let (mut proofs, _link_proofs, n_cycles) = prove_from_elf::<Blake3_192, BaseElement>(
+    let (proof, _link_proofs, n_cycles) = prove_from_elf::<Blake3_192, BaseElement>(
         elf,
         PROOF_OPTIONS.clone(),
         SegmentConfig::Single,
     )
     .unwrap();
     verify::<Blake3_192>(
-        proofs.pop().unwrap(),
+        proof,
         Inputs {
             program,
             segment: Segment { segment_n: 0 },
@@ -57,14 +57,14 @@ fn prove_and_verify_loop() {
 fn prove_and_verify_fibonacci() {
     let elf = rvsim::elf::Elf32::parse(FIBONACCI_ELF).unwrap();
     let program = Program::from(&elf);
-    let (mut proofs, _link_proofs, n_cycles) = prove_from_elf::<Blake3_192, BaseElement>(
+    let (proof, _link_proofs, n_cycles) = prove_from_elf::<Blake3_192, BaseElement>(
         elf,
         PROOF_OPTIONS.clone(),
         SegmentConfig::Single,
     )
     .unwrap();
     verify::<Blake3_192>(
-        proofs.pop().unwrap(),
+        proof,
         Inputs {
             program,
             segment: Segment { segment_n: 0 },
